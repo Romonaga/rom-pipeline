@@ -1,6 +1,8 @@
 use std::fmt::Write;
 
-use rom_pipeline_core::{AppConfig, ProfileConfig, PspSettings, SystemKind, WiiUSettings};
+use rom_pipeline_core::{
+    AppConfig, ProfileConfig, Ps2Settings, PspSettings, SystemKind, WiiUSettings,
+};
 use rom_pipeline_service::ProfileStatus;
 
 const STYLE: &str = r"
@@ -73,7 +75,7 @@ for (const card of document.querySelectorAll('[data-profile]')) {
         const p = s.prune;
         const percent = p.total ? Math.round((p.removed * 100) / p.total) : 0;
         document.getElementById('prune-count-' + id).textContent =
-          p.removed + ' / ' + p.total + ' source ISOs removed (' + percent + '%)';
+          p.removed + ' / ' + p.total + ' source files removed (' + percent + '%)';
         document.getElementById('prune-bar-' + id).style.width = percent + '%';
         document.getElementById('prune-remaining-' + id).textContent = p.remaining;
         document.getElementById('prune-phase-' + id).textContent = p.phase;
@@ -95,7 +97,7 @@ pub fn render(config: &AppConfig, statuses: &[ProfileStatus]) -> String {
 </head><body><main>
 <p class="eyebrow">Local conversion service</p>
 <h1>ROM Pipeline</h1>
-<p class="lede">Configure sources and outputs, process bounded batches, and see exactly what is active. Adapters currently handle Wii U title sets, Nintendo 3DS cartridge images, and PSP ISO-to-CHD conversion.</p>
+<p class="lede">Configure sources and outputs, process bounded batches, and see exactly what is active. Adapters currently handle Wii U title sets, Nintendo 3DS cartridge images, PSP ISO-to-CHD conversion, and verified PS2 disc compression.</p>
 {profiles}
 </main><script>{SCRIPT}</script></body></html>"#
     )
@@ -152,7 +154,7 @@ fn render_profiles(config: &AppConfig, statuses: &[ProfileStatus]) -> String {
 }
 
 fn prune_status(profile: &ProfileConfig, status: Option<&ProfileStatus>) -> String {
-    if !matches!(profile.system, SystemKind::PlayStationPortable) || profile.library_dir.is_none() {
+    if !supports_library_actions(&profile.system) || profile.library_dir.is_none() {
         return String::new();
     }
     let Some(progress) = status.and_then(|status| status.prune.as_ref()) else {
@@ -166,10 +168,10 @@ fn prune_status(profile: &ProfileConfig, status: Option<&ProfileStatus>) -> Stri
     format!(
         r#"<div class="publication prune-progress">
 <div class="publication-heading"><h3>Source pruning progress</h3>
-<strong id="prune-count-{id}">{removed} / {total} source ISOs removed ({percent}%)</strong></div>
+<strong id="prune-count-{id}">{removed} / {total} source files removed ({percent}%)</strong></div>
 <div class="progress-track"><div class="progress-fill" id="prune-bar-{id}" style="width:{percent}%"></div></div>
 <div class="publication-grid">
-<div><span>Source ISOs remaining</span><strong id="prune-remaining-{id}">{remaining}</strong></div>
+<div><span>Source files remaining</span><strong id="prune-remaining-{id}">{remaining}</strong></div>
 <div><span>Phase</span><strong id="prune-phase-{id}">{phase}</strong></div>
 <div><span>Current game</span><strong id="prune-game-{id}">{game}</strong></div>
 </div></div>"#,
@@ -184,7 +186,7 @@ fn prune_status(profile: &ProfileConfig, status: Option<&ProfileStatus>) -> Stri
 }
 
 fn publication_status(profile: &ProfileConfig, status: Option<&ProfileStatus>) -> String {
-    if !matches!(profile.system, SystemKind::PlayStationPortable) || profile.library_dir.is_none() {
+    if !supports_library_actions(&profile.system) || profile.library_dir.is_none() {
         return String::new();
     }
     let Some(progress) = status.and_then(|status| status.publication.as_ref()) else {
@@ -220,7 +222,7 @@ fn publication_status(profile: &ProfileConfig, status: Option<&ProfileStatus>) -
 }
 
 fn library_actions(profile: &ProfileConfig) -> String {
-    if !matches!(profile.system, SystemKind::PlayStationPortable) || profile.library_dir.is_none() {
+    if !supports_library_actions(&profile.system) || profile.library_dir.is_none() {
         return String::new();
     }
     format!(
@@ -228,12 +230,12 @@ fn library_actions(profile: &ProfileConfig) -> String {
 <form method="post" action="/profiles/publish">
 <input type="hidden" name="profile" value="{id}">
 <label>Games to publish <input name="limit" type="number" min="1" value="{limit}"></label>
-<button type="submit">Publish verified CHDs</button></form>
+<button type="submit">Publish verified outputs</button></form>
 <form method="post" action="/profiles/prune">
 <input type="hidden" name="profile" value="{id}">
 <label>Games to prune <input name="limit" type="number" min="1" value="{limit}"></label>
-<label><input name="confirm" type="checkbox" value="yes" required> Permanently delete verified source ISOs</label>
-<button class="danger" type="submit">Prune source ISOs</button></form></div>"#,
+<label><input name="confirm" type="checkbox" value="yes" required> Permanently delete verified source files</label>
+<button class="danger" type="submit">Prune source files</button></form></div>"#,
         id = escape(&profile.id),
         limit = profile.batch_limit,
     )
@@ -255,7 +257,10 @@ fn configuration_form(profile: &ProfileConfig) -> String {
             psp_configuration_fields(profile, psp)
         }
         SystemKind::PlayStation2 => {
-            return "<p>Adapter configuration is not implemented yet.</p>".to_owned();
+            let Some(ps2) = profile.ps2.as_ref() else {
+                return "<p>PS2 settings are missing.</p>".to_owned();
+            };
+            ps2_configuration_fields(profile, ps2)
         }
     };
     format!(
@@ -267,6 +272,40 @@ fn configuration_form(profile: &ProfileConfig) -> String {
 </form></details>"#,
         id = escape(&profile.id),
         fields = fields,
+    )
+}
+
+fn ps2_configuration_fields(profile: &ProfileConfig, ps2: &Ps2Settings) -> String {
+    let mut fields = vec![common_configuration_fields(profile)];
+    fields.extend([
+        path_field("Download manifest", "manifest", &ps2.manifest),
+        path_field("CHDMan", "chdman", &ps2.chdman),
+        field(
+            "Minimum savings percent",
+            "minimum_savings_percent",
+            &ps2.minimum_savings_percent.to_string(),
+            "number",
+        ),
+        field(
+            "Preserve original when compression is not worthwhile",
+            "preserve_when_compression_is_not_worthwhile",
+            &ps2.preserve_when_compression_is_not_worthwhile.to_string(),
+            "text",
+        ),
+        field(
+            "Full round-trip verification",
+            "verify_round_trip",
+            &ps2.verify_round_trip.to_string(),
+            "text",
+        ),
+    ]);
+    fields.join("")
+}
+
+fn supports_library_actions(system: &SystemKind) -> bool {
+    matches!(
+        system,
+        SystemKind::PlayStationPortable | SystemKind::PlayStation2
     )
 }
 

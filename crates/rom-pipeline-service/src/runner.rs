@@ -10,6 +10,7 @@ use rom_pipeline_core::{
     RunSummary, StateStore, StopToken, SystemKind,
 };
 use rom_pipeline_nintendo_3ds::Nintendo3dsAdapter;
+use rom_pipeline_ps2::Ps2Adapter;
 use rom_pipeline_psp::PspAdapter;
 use rom_pipeline_wiiu::WiiUAdapter;
 use signal_hook::consts::signal::{SIGHUP, SIGINT, SIGTERM};
@@ -37,9 +38,11 @@ pub fn run_profile(profile: ProfileConfig, options: &RunOptions) -> Result<RunSu
             adapter.preflight()?;
             Runner::new(profile, adapter).run(options)
         }
-        SystemKind::PlayStation2 => Err(PipelineError::Message(
-            "the PS2 adapter is not implemented yet".to_owned(),
-        )),
+        SystemKind::PlayStation2 => {
+            let adapter = Ps2Adapter::new(profile.clone())?;
+            adapter.preflight()?;
+            Runner::new(profile, adapter).run(options)
+        }
     }
 }
 

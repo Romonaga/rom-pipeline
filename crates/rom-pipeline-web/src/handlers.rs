@@ -104,9 +104,12 @@ pub async fn publish_profile(
 ) -> WebResult<Redirect> {
     let config = AppConfig::load(&state.config_path)?;
     let profile = config.profile(&form.profile)?;
-    if !matches!(profile.system, SystemKind::PlayStationPortable) {
+    if !matches!(
+        profile.system,
+        SystemKind::PlayStationPortable | SystemKind::PlayStation2
+    ) {
         return Err(WebError(PipelineError::Message(
-            "publish is currently implemented only for PSP".to_owned(),
+            "publish is currently implemented only for PSP and PS2".to_owned(),
         )));
     }
     start_publish_service(
@@ -129,9 +132,12 @@ pub async fn prune_profile(
     }
     let config = AppConfig::load(&state.config_path)?;
     let profile = config.profile(&form.profile)?;
-    if !matches!(profile.system, SystemKind::PlayStationPortable) {
+    if !matches!(
+        profile.system,
+        SystemKind::PlayStationPortable | SystemKind::PlayStation2
+    ) {
         return Err(WebError(PipelineError::Message(
-            "prune is currently implemented only for PSP".to_owned(),
+            "prune is currently implemented only for PSP and PS2".to_owned(),
         )));
     }
     start_prune_service(
@@ -165,6 +171,8 @@ pub struct SaveProfileForm {
     codec: Option<String>,
     hunk_size: Option<u32>,
     verify_round_trip: Option<bool>,
+    minimum_savings_percent: Option<u8>,
+    preserve_when_compression_is_not_worthwhile: Option<bool>,
 }
 
 pub async fn save_profile(
@@ -226,9 +234,25 @@ pub async fn save_profile(
             })?;
         }
         SystemKind::PlayStation2 => {
-            return Err(WebError(PipelineError::Message(
-                "PS2 configuration is not implemented".to_owned(),
-            )));
+            let ps2 = profile
+                .ps2
+                .as_mut()
+                .ok_or_else(|| PipelineError::InvalidConfig("missing PS2 settings".to_owned()))?;
+            ps2.manifest = required(form.manifest, "manifest")?.into();
+            ps2.chdman = required(form.chdman, "chdman")?.into();
+            ps2.minimum_savings_percent = form.minimum_savings_percent.ok_or_else(|| {
+                PipelineError::InvalidConfig("minimum_savings_percent is required".to_owned())
+            })?;
+            ps2.preserve_when_compression_is_not_worthwhile = form
+                .preserve_when_compression_is_not_worthwhile
+                .ok_or_else(|| {
+                    PipelineError::InvalidConfig(
+                        "preserve_when_compression_is_not_worthwhile is required".to_owned(),
+                    )
+                })?;
+            ps2.verify_round_trip = form.verify_round_trip.ok_or_else(|| {
+                PipelineError::InvalidConfig("verify_round_trip is required".to_owned())
+            })?;
         }
     }
     config.save(&state.config_path)?;

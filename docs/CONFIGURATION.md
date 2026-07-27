@@ -41,6 +41,11 @@ For PSP, `output_dir` is fast local staging and `library_dir` is the final
 library home. Publish and Prune are independent bounded actions and use the
 same exclusive profile lock and graceful-stop control as conversion.
 
-PS2 will need an explicit emulator compatibility target and a policy for ISO,
-raw BIN/CUE, CHD, or ZSO. Compression savings thresholds belong to that adapter,
-not the common service.
+PS2 uses `source_format = "disc-image"` and `output_format = "mixed"`. Its
+settings require the downloader's tab-separated size/name `manifest`, an
+absolute `chdman` path, a `minimum_savings_percent`, and booleans controlling
+original-format preservation and full round-trip verification. Source ISO/BIN
+files can remain on the NAS while work and staged outputs live on FastDrive.
+As with PSP, Publish transfers verified outputs to `library_dir`; Prune is a
+separate, explicitly confirmed action and is unavailable until the complete
+manifest set is published.

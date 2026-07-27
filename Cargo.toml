@@ -3,6 +3,7 @@ members = [
     "crates/rom-pipeline-cli",
     "crates/rom-pipeline-core",
     "crates/rom-pipeline-nintendo-3ds",
+    "crates/rom-pipeline-ps2",
     "crates/rom-pipeline-psp",
     "crates/rom-pipeline-service",
     "crates/rom-pipeline-web",

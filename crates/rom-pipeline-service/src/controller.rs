@@ -19,10 +19,33 @@ pub fn start_service(
     profile: &ProfileConfig,
     limit: BatchPolicy,
 ) -> Result<()> {
-    start_action_service(executable, config_path, profile, limit, "run", false)
+    start_action_service(executable, config_path, profile, limit, "run", false, None)
 }
 
-/// Starts PSP publication as the profile's transient worker.
+/// Starts one selected job as the profile's transient worker.
+///
+/// # Errors
+///
+/// Returns an error if service state cannot be queried or `systemd-run` fails.
+pub fn start_job_service(
+    executable: &Path,
+    config_path: &Path,
+    profile: &ProfileConfig,
+    limit: BatchPolicy,
+    job_id: &str,
+) -> Result<()> {
+    start_action_service(
+        executable,
+        config_path,
+        profile,
+        limit,
+        "run",
+        false,
+        Some(job_id),
+    )
+}
+
+/// Starts publication as the profile's transient worker.
 ///
 /// # Errors
 ///
@@ -34,10 +57,18 @@ pub fn start_publish_service(
     profile: &ProfileConfig,
     limit: BatchPolicy,
 ) -> Result<()> {
-    start_action_service(executable, config_path, profile, limit, "publish", true)
+    start_action_service(
+        executable,
+        config_path,
+        profile,
+        limit,
+        "publish",
+        true,
+        None,
+    )
 }
 
-/// Starts confirmed PSP source pruning as the profile's transient worker.
+/// Starts confirmed source pruning as the profile's transient worker.
 ///
 /// # Errors
 ///
@@ -49,7 +80,7 @@ pub fn start_prune_service(
     profile: &ProfileConfig,
     limit: BatchPolicy,
 ) -> Result<()> {
-    start_action_service(executable, config_path, profile, limit, "prune", true)
+    start_action_service(executable, config_path, profile, limit, "prune", true, None)
 }
 
 fn start_action_service(
@@ -59,6 +90,7 @@ fn start_action_service(
     limit: BatchPolicy,
     action: &str,
     reject_active: bool,
+    only_job: Option<&str>,
 ) -> Result<()> {
     let unit = unit_name(&profile.id);
     if service_state(&profile.id)? == "active" {
@@ -94,6 +126,9 @@ fn start_action_service(
         ]);
     if action == "prune" {
         command.arg("--confirm-prune");
+    }
+    if let Some(job_id) = only_job {
+        command.args(["--only", job_id]);
     }
     let status = command
         .status()

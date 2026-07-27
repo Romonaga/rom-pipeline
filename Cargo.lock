@@ -378,6 +378,7 @@ version = "0.1.0"
 dependencies = [
  "rom-pipeline-core",
  "rom-pipeline-nintendo-3ds",
+ "rom-pipeline-ps2",
  "rom-pipeline-psp",
  "rom-pipeline-service",
  "rom-pipeline-web",
@@ -404,6 +405,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rom-pipeline-ps2"
+version = "0.1.0"
+dependencies = [
+ "fs2",
+ "rom-pipeline-core",
+ "sha2",
+]
+
+[[package]]
 name = "rom-pipeline-psp"
 version = "0.1.0"
 dependencies = [
@@ -419,6 +429,7 @@ dependencies = [
  "fs2",
  "rom-pipeline-core",
  "rom-pipeline-nintendo-3ds",
+ "rom-pipeline-ps2",
  "rom-pipeline-psp",
  "rom-pipeline-wiiu",
  "serde",

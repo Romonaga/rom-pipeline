@@ -74,9 +74,13 @@ work_dir = "/mnt/fast/rom-pipeline/ps2/work"
 state_dir = "/mnt/fast/rom-pipeline/ps2/state"
 log_dir = "/mnt/fast/rom-pipeline/ps2/logs"
 output_dir = "/mnt/fast/rom-pipeline/ps2/games"
-output_format = "decide-after-emulator-compatibility-test"
+library_dir = "/mnt/roms/ps2/library"
+output_format = "mixed"
 batch_limit = 5
 
 [profiles.ps2]
+manifest = "/var/lib/rom-pipeline/ps2/manifest.tsv"
+chdman = "/usr/bin/chdman"
 minimum_savings_percent = 10
 preserve_when_compression_is_not_worthwhile = true
+verify_round_trip = true

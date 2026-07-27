@@ -28,6 +28,23 @@ rom-pipeline stop
 `stop` is graceful. It leaves the current title resumable and does not remove
 source archives.
 
+## PS2 pilot
+
+Before processing the whole library, select representative jobs with
+`inventory --profile ps2`, then run them individually with `--only`. Include a
+logical DVD, a padded DVD, a large dual-layer title, and a proven raw Mode 2
+BIN. For every completed pilot job:
+
+1. Confirm the activity reports inspect, create, CHD verify, round-trip, and
+   completion stages.
+2. Confirm the completion marker records the staged output hash and actual
+   output name.
+3. Publish it and confirm the final library copy is verified and the redundant
+   FastDrive copy is removed.
+4. Test the final output on the target emulator before starting the full set.
+5. Do not prune pilot sources; the full-manifest guard should reject pruning
+   while any job remains incomplete or unpublished.
+
 ## Legacy removal
 
 Completed after the first production base+update+DLC conversion:

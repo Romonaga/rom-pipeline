@@ -8,6 +8,7 @@ use rom_pipeline_core::{
     SystemKind, completion_output_valid,
 };
 use rom_pipeline_nintendo_3ds::Nintendo3dsAdapter;
+use rom_pipeline_ps2::Ps2Adapter;
 use rom_pipeline_psp::PspAdapter;
 use rom_pipeline_wiiu::WiiUAdapter;
 use serde::Serialize;
@@ -87,16 +88,24 @@ pub fn profile_status(profile: &ProfileConfig) -> Result<ProfileStatus> {
             let adapter = PspAdapter::new(profile.clone())?;
             completion_counts(&adapter, profile, &state)?
         }
-        SystemKind::PlayStation2 => (0, 0),
+        SystemKind::PlayStation2 => {
+            let adapter = Ps2Adapter::new(profile.clone())?;
+            completion_counts(&adapter, profile, &state)?
+        }
     };
     let batch_limit =
         read_number(profile.state_dir.join("batch.limit")).unwrap_or(profile.batch_limit);
-    let mut output_files = count_extension(&profile.output_dir, &profile.output_format)?;
-    if let Some(library) = &profile.library_dir {
-        if library != &profile.output_dir {
-            output_files += count_extension(library, &profile.output_format)?;
+    let output_files = if matches!(profile.system, SystemKind::PlayStation2) {
+        completed_groups
+    } else {
+        let mut count = count_outputs(profile, &profile.output_dir)?;
+        if let Some(library) = &profile.library_dir {
+            if library != &profile.output_dir {
+                count += count_outputs(profile, library)?;
+            }
         }
-    }
+        count
+    };
     let publication =
         publication_progress(profile, &state, completed_groups, total_groups, &current)?;
     let prune = prune_progress(profile, &state, &current)?;
@@ -125,7 +134,7 @@ fn publication_progress(
     total: usize,
     current: &str,
 ) -> Result<Option<PublicationProgress>> {
-    if !matches!(profile.system, SystemKind::PlayStationPortable) {
+    if !supports_library_actions(&profile.system) {
         return Ok(None);
     }
     let Some(library) = profile.library_dir.as_deref() else {
@@ -134,7 +143,7 @@ fn publication_progress(
     let records = state.completion_records()?;
     let published = count_published_outputs(library, records.values())?;
     let remaining = total.saturating_sub(published);
-    let partial_files = count_suffix(library, ".chd.partial")?;
+    let partial_files = count_suffix(library, ".partial")?;
     let (phase, current_game) = publication_phase(current, published, total);
     Ok(Some(PublicationProgress {
         published,
@@ -176,7 +185,7 @@ fn publication_phase(current: &str, published: usize, total: usize) -> (String, 
     let phase = if current.contains("step=publish-copy") {
         "Copying to final library"
     } else if current.contains("step=publish-verify-staging") {
-        "Verifying staged CHD"
+        "Verifying staged output"
     } else if current.contains("step=publish-verify") {
         "Verifying final copy"
     } else if current.contains("step=publish-check-existing") {
@@ -202,7 +211,7 @@ fn prune_progress(
     state: &StateStore,
     current: &str,
 ) -> Result<Option<PruneProgress>> {
-    if !matches!(profile.system, SystemKind::PlayStationPortable) || profile.library_dir.is_none() {
+    if !supports_library_actions(&profile.system) || profile.library_dir.is_none() {
         return Ok(None);
     }
     let log = match fs::read_to_string(state.pipeline_log_path()) {
@@ -211,10 +220,15 @@ fn prune_progress(
         Err(error) => return Err(PipelineError::io("read pipeline log", error)),
     };
     let removed = pruned_source_names(&log).len();
-    let mut remaining = count_extension(&profile.source_dir, &profile.source_format)?;
-    if profile.done_dir != profile.source_dir {
-        remaining += count_extension(&profile.done_dir, &profile.source_format)?;
-    }
+    let remaining = if matches!(profile.system, SystemKind::PlayStation2) {
+        count_ps2_manifest_sources(profile, state)?
+    } else {
+        let mut count = count_sources(profile, &profile.source_dir, state)?;
+        if profile.done_dir != profile.source_dir {
+            count += count_sources(profile, &profile.done_dir, state)?;
+        }
+        count
+    };
     let total = removed.saturating_add(remaining);
     let (phase, current_game) = prune_phase(current, removed, remaining);
     Ok(Some(PruneProgress {
@@ -226,11 +240,87 @@ fn prune_progress(
     }))
 }
 
-fn pruned_source_names(log: &str) -> BTreeSet<&str> {
-    const EVENT: &str = " PRUNED verified PSP source: ";
+fn pruned_source_names(log: &str) -> BTreeSet<String> {
+    const PSP_EVENT: &str = " PRUNED verified PSP source: ";
+    const PS2_EVENT: &str = " PRUNED verified PS2 source: ";
     log.lines()
-        .filter_map(|line| line.split_once(EVENT).map(|(_, name)| name))
+        .filter_map(|line| {
+            line.split_once(PSP_EVENT)
+                .or_else(|| line.split_once(PS2_EVENT))
+                .map(|(_, name)| name.to_owned())
+        })
         .collect()
+}
+
+fn supports_library_actions(system: &SystemKind) -> bool {
+    matches!(
+        system,
+        SystemKind::PlayStationPortable | SystemKind::PlayStation2
+    )
+}
+
+fn count_outputs(profile: &ProfileConfig, path: &Path) -> Result<usize> {
+    if matches!(profile.system, SystemKind::PlayStation2) && profile.output_format == "mixed" {
+        Ok(count_extension(path, "chd")?
+            + count_extension(path, "iso")?
+            + count_extension(path, "bin")?)
+    } else {
+        count_extension(path, &profile.output_format)
+    }
+}
+
+fn count_sources(profile: &ProfileConfig, path: &Path, state: &StateStore) -> Result<usize> {
+    let entries = match fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(PipelineError::io(format!("read {}", path.display()), error)),
+    };
+    let library_outputs = if profile.library_dir.as_deref() == Some(path) {
+        state
+            .completion_records()?
+            .into_values()
+            .map(|record| record.output_name)
+            .collect::<BTreeSet<_>>()
+    } else {
+        BTreeSet::new()
+    };
+    Ok(entries
+        .filter_map(std::result::Result::ok)
+        .filter(|entry| {
+            let name = entry.file_name();
+            if library_outputs.contains(name.to_string_lossy().as_ref()) {
+                return false;
+            }
+            let path = entry.path();
+            if matches!(profile.system, SystemKind::PlayStation2) {
+                path.extension().is_some_and(|extension| {
+                    extension.eq_ignore_ascii_case("iso") || extension.eq_ignore_ascii_case("bin")
+                })
+            } else {
+                path.extension()
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case(&profile.source_format))
+            }
+        })
+        .count())
+}
+
+fn count_ps2_manifest_sources(profile: &ProfileConfig, state: &StateStore) -> Result<usize> {
+    let adapter = Ps2Adapter::new(profile.clone())?;
+    let records = state.completion_records()?;
+    Ok(adapter
+        .inventory(None)?
+        .into_iter()
+        .flat_map(|job| job.sources)
+        .filter(|artifact| {
+            let source = profile.source_dir.join(&artifact.name);
+            let done = profile.done_dir.join(&artifact.name);
+            let library_is_source = records
+                .values()
+                .any(|record| record.output_name == artifact.name)
+                && profile.library_dir.as_deref() == Some(profile.source_dir.as_path());
+            (!library_is_source && source.is_file()) || done.is_file()
+        })
+        .count())
 }
 
 fn prune_phase(current: &str, removed: usize, remaining: usize) -> (String, Option<String>) {
@@ -403,7 +493,7 @@ mod tests {
             4,
             10,
         );
-        assert_eq!(phase, "Verifying staged CHD");
+        assert_eq!(phase, "Verifying staged output");
         assert_eq!(game.as_deref(), Some("Next Game.chd"));
     }
 
@@ -411,11 +501,13 @@ mod tests {
     fn prune_events_count_unique_source_files() {
         let log = "1 PRUNED verified PSP source: First.iso\n\
                    2 PRUNED verified PSP source: Second.iso\n\
-                   3 PRUNED verified PSP source: First.iso\n";
+                   3 PRUNED verified PSP source: First.iso\n\
+                   4 PRUNED verified PS2 source: Third.bin\n";
         let names = pruned_source_names(log);
-        assert_eq!(names.len(), 2);
+        assert_eq!(names.len(), 3);
         assert!(names.contains("First.iso"));
         assert!(names.contains("Second.iso"));
+        assert!(names.contains("Third.bin"));
     }
 
     #[test]

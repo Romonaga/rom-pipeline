@@ -56,8 +56,12 @@ fn default_source_service() -> String {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Ps2Settings {
+    pub manifest: PathBuf,
+    pub chdman: PathBuf,
     pub minimum_savings_percent: u8,
     pub preserve_when_compression_is_not_worthwhile: bool,
+    #[serde(default = "enabled")]
+    pub verify_round_trip: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -206,6 +210,16 @@ impl ProfileConfig {
             SystemKind::PlayStation2 if self.ps2.is_none() => Err(PipelineError::InvalidConfig(
                 "PS2 profile requires [profiles.ps2] settings".to_owned(),
             )),
+            SystemKind::PlayStation2
+                if self
+                    .ps2
+                    .as_ref()
+                    .is_some_and(|settings| settings.minimum_savings_percent > 100) =>
+            {
+                Err(PipelineError::InvalidConfig(
+                    "PS2 minimum_savings_percent cannot exceed 100".to_owned(),
+                ))
+            }
             _ => Ok(()),
         }
     }

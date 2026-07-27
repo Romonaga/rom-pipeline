@@ -32,7 +32,8 @@ for access from other hosts.
    - Wii U NUS archives to validated WUA
    - Nintendo 3DS CCI images with proven decrypted payloads to normalized CCI
    - PSP ISO images to verified DVD-mode CHD, with exact duplicates grouped
-   - PS2 disc images to a validated, emulator-compatible target format
+   - PS2 ISO and proven raw Mode 2 disc images to verified CHD or a preserved
+     original when compression is not worthwhile
    - Future adapters for other systems
 5. **State store**
    - Durable job states and output fingerprints
@@ -111,3 +112,22 @@ refused until every remaining PSP job is complete and present in the final
 library. Each library CHD is rehashed and verified again immediately before its
 associated source ISO files are permanently removed. Durable completion markers
 remain part of status inventory after those sources are gone.
+
+## PlayStation 2 compression
+
+The PS2 adapter builds a stable inventory from the downloader's size/name
+manifest, so files that are still downloading remain visible as waiting jobs
+and pruned sources do not vanish from the set total. A filename hash supplies
+the internal job ID while human output names use deterministic numeric suffixes
+for collisions.
+
+Logical 2048-byte images use `chdman createdvd`. Raw 2352-byte BIN images are
+accepted only after every sector proves a single Mode 2 data-track layout; the
+adapter then generates an owned cue and uses `chdman createcd`. Ambiguous or
+mixed/audio layouts fail safely because they require a trusted source cue.
+
+Every CHD is verified, extracted on FastDrive, and compared byte-for-byte by
+SHA-256 with its source. If the verified CHD does not meet the configured
+minimum savings, the untouched ISO or BIN is staged instead. Conversion,
+publication, and pruning remain separate locked actions. Pruning is refused
+until all manifest jobs are complete and published.

@@ -23,6 +23,8 @@ See [Architecture](docs/ARCHITECTURE.md) and
   normalization, and byte-exact validation adapter
 - `crates/rom-pipeline-psp`: PSP ISO identity validation, exact-duplicate
   grouping, CHD creation, and full round-trip validation adapter
+- `crates/rom-pipeline-ps2`: manifest-backed PS2 ISO/raw Mode 2 inventory,
+  compatibility-first CHD creation, and full round-trip validation adapter
 - `crates/rom-pipeline-service`: bounded runner and systemd controls
 - `crates/rom-pipeline-web`: loopback configuration and live-status screen
 - `crates/rom-pipeline-cli`: command-line entry point
@@ -32,7 +34,7 @@ See [Architecture](docs/ARCHITECTURE.md) and
 
 - Rust 1.86 or newer
 - `7z` for archive extraction
-- `chdman` for PSP CHD conversion and verification
+- `chdman` for PSP and PS2 CHD conversion and verification
 - Adapter-specific tools such as CDecrypt and ZArchive for Wii U processing
 
 ROM Pipeline does not include game data, console keys, firmware, or third-party
@@ -95,3 +97,8 @@ every remaining PSP job is complete and published:
 ```bash
 rom-pipeline prune 5 --confirm-prune --profile psp
 ```
+
+The PS2 profile uses the same staged Publish and separately guarded Prune
+lifecycle. It accepts logical 2048-byte ISO images and proven single-track raw
+Mode 2/2352 BIN images. Compression that saves less than the configured
+threshold can preserve the original format instead.
