@@ -1,0 +1,97 @@
+# ROM Pipeline
+
+ROM Pipeline is a resumable ROM-processing service with a local configuration
+and status screen.
+
+## Direction
+
+- Rust owns configuration, state, validation, orchestration, and system adapters.
+- A local web interface configures source contents, output format, paths,
+  batch size, and start/stop/resume behavior.
+- Each console or media family is implemented as an adapter behind the same
+  safety and lifecycle rules.
+
+See [Architecture](docs/ARCHITECTURE.md) and
+[Configuration](docs/CONFIGURATION.md).
+
+## Workspace
+
+- `crates/rom-pipeline-core`: configuration and domain rules
+- `crates/rom-pipeline-wiiu`: Wii U inventory, extraction, decryption, packaging,
+  and validation adapter
+- `crates/rom-pipeline-nintendo-3ds`: Nintendo 3DS CCI inspection, crypto-flag
+  normalization, and byte-exact validation adapter
+- `crates/rom-pipeline-psp`: PSP ISO identity validation, exact-duplicate
+  grouping, CHD creation, and full round-trip validation adapter
+- `crates/rom-pipeline-service`: bounded runner and systemd controls
+- `crates/rom-pipeline-web`: loopback configuration and live-status screen
+- `crates/rom-pipeline-cli`: command-line entry point
+- `config/profiles.example.toml`: example configuration format
+
+## Requirements
+
+- Rust 1.86 or newer
+- `7z` for archive extraction
+- `chdman` for PSP CHD conversion and verification
+- Adapter-specific tools such as CDecrypt and ZArchive for Wii U processing
+
+ROM Pipeline does not include game data, console keys, firmware, or third-party
+decryption and packaging tools. Use it only with content you are legally
+entitled to process.
+
+## Build and install
+
+```bash
+cargo build --release --locked
+mkdir -p "$HOME/.local/bin" "$HOME/.config/rom-pipeline"
+install -m 0755 target/release/rom-pipeline "$HOME/.local/bin/rom-pipeline"
+install -m 0644 config/profiles.example.toml \
+  "$HOME/.config/rom-pipeline/config.toml"
+```
+
+Edit the copied configuration for your storage and installed tools. To install
+the optional local web service:
+
+```bash
+mkdir -p "$HOME/.config/systemd/user"
+install -m 0644 packaging/systemd/rom-pipeline-ui.service \
+  "$HOME/.config/systemd/user/rom-pipeline-ui.service"
+systemctl --user daemon-reload
+systemctl --user enable --now rom-pipeline-ui.service
+```
+
+## Development
+
+```bash
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+```
+
+## Installed interface
+
+The user service exposes the screen only on the local machine:
+
+```text
+http://127.0.0.1:8787
+```
+
+See [Testing](docs/TESTING.md) for the acceptance checklist.
+
+## PSP library lifecycle
+
+Completed PSP CHDs remain in FastDrive staging until explicitly published:
+
+```bash
+rom-pipeline publish 5 --profile psp
+```
+
+Publication copies through a `.partial` file, validates SHA-256 and CHD
+integrity, atomically publishes to `library_dir`, and removes the redundant
+staging copy.
+
+Processed source ISOs are retained until a separately confirmed prune after
+every remaining PSP job is complete and published:
+
+```bash
+rom-pipeline prune 5 --confirm-prune --profile psp
+```

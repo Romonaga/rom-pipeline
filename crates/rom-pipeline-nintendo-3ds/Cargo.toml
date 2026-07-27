@@ -1,0 +1,13 @@
+[package]
+name = "rom-pipeline-nintendo-3ds"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+rom-pipeline-core = { path = "../rom-pipeline-core" }
+sha2.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,18 @@
+[package]
+name = "rom-pipeline-service"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+fs2.workspace = true
+rom-pipeline-core = { path = "../rom-pipeline-core" }
+rom-pipeline-nintendo-3ds = { path = "../rom-pipeline-nintendo-3ds" }
+rom-pipeline-psp = { path = "../rom-pipeline-psp" }
+rom-pipeline-wiiu = { path = "../rom-pipeline-wiiu" }
+serde.workspace = true
+signal-hook.workspace = true
+
+[lints]
+workspace = true

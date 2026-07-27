@@ -1,0 +1,7 @@
+/target/
+/legacy/
+/config/*.toml
+!/config/profiles.example.toml
+*.log
+*.partial
+.env

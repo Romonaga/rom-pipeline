@@ -1,0 +1,15 @@
+[Unit]
+Description=ROM Pipeline local configuration screen
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/rom-pipeline serve --config %h/.config/rom-pipeline/config.toml
+Restart=on-failure
+RestartSec=3
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

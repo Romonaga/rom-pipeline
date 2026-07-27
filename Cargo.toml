@@ -1,0 +1,34 @@
+[workspace]
+members = [
+    "crates/rom-pipeline-cli",
+    "crates/rom-pipeline-core",
+    "crates/rom-pipeline-nintendo-3ds",
+    "crates/rom-pipeline-psp",
+    "crates/rom-pipeline-service",
+    "crates/rom-pipeline-web",
+    "crates/rom-pipeline-wiiu",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+rust-version = "1.86"
+version = "0.1.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
+
+[workspace.dependencies]
+axum = { version = "0.8.9", features = ["form"] }
+fs2 = "0.4.3"
+serde = { version = "1.0.229", features = ["derive"] }
+sha2 = "0.11.0"
+signal-hook = "0.4.4"
+thiserror = "2.0.19"
+tokio = { version = "1.53.1", features = ["macros", "net", "rt-multi-thread"] }
+toml = "1.1.3"

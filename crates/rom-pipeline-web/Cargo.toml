@@ -1,0 +1,17 @@
+[package]
+name = "rom-pipeline-web"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+axum.workspace = true
+rom-pipeline-core = { path = "../rom-pipeline-core" }
+rom-pipeline-service = { path = "../rom-pipeline-service" }
+serde.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true
+

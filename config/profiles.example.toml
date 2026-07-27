@@ -1,0 +1,82 @@
+[service]
+bind = "127.0.0.1:8787"
+default_batch_limit = 5
+
+[[profiles]]
+id = "wiiu"
+name = "Wii U retail NUS"
+system = "wiiu"
+source_format = "nus-7z"
+source_dir = "/mnt/roms/wiiu/incoming"
+done_dir = "/mnt/roms/wiiu/done"
+work_dir = "/mnt/fast/rom-pipeline/wiiu/work"
+state_dir = "/mnt/fast/rom-pipeline/wiiu/state"
+log_dir = "/mnt/fast/rom-pipeline/wiiu/logs"
+output_dir = "/mnt/fast/rom-pipeline/wiiu/wua"
+library_dir = "/mnt/roms/wiiu/library"
+output_format = "wua"
+batch_limit = 5
+
+[profiles.wiiu]
+manifest = "/var/lib/rom-pipeline/wiiu/manifest.tsv"
+cdecrypt = "/usr/local/libexec/rom-pipeline/wiiu/cdecrypt"
+zarchive = "/usr/local/libexec/rom-pipeline/wiiu/zarchive"
+wait_seconds = 60
+source_service = "archive-wiiu-download.service"
+
+[[profiles]]
+id = "3ds"
+name = "Nintendo 3DS cartridge images"
+system = "3ds"
+source_format = "3ds-cci"
+source_dir = "/mnt/roms/3ds/incoming"
+done_dir = "/mnt/roms/3ds/done"
+work_dir = "/mnt/fast/rom-pipeline/3ds/work"
+state_dir = "/mnt/fast/rom-pipeline/3ds/state"
+log_dir = "/mnt/fast/rom-pipeline/3ds/logs"
+output_dir = "/mnt/fast/rom-pipeline/3ds/cci"
+library_dir = "/mnt/roms/3ds/library"
+output_format = "cci"
+batch_limit = 5
+
+[profiles.3ds]
+normalize_crypto_flags = true
+
+[[profiles]]
+id = "psp"
+name = "Sony PSP disc images"
+system = "psp"
+source_format = "iso"
+source_dir = "/mnt/roms/psp/incoming"
+done_dir = "/mnt/roms/psp/done"
+work_dir = "/mnt/fast/rom-pipeline/psp/work"
+state_dir = "/mnt/fast/rom-pipeline/psp/state"
+log_dir = "/mnt/fast/rom-pipeline/psp/logs"
+output_dir = "/mnt/fast/rom-pipeline/psp/chd"
+library_dir = "/mnt/roms/psp/library"
+output_format = "chd"
+batch_limit = 5
+
+[profiles.psp]
+chdman = "/usr/bin/chdman"
+codec = "zstd"
+hunk_size = 2048
+verify_round_trip = true
+
+[[profiles]]
+id = "ps2"
+name = "PlayStation 2 disc images"
+system = "ps2"
+source_format = "disc-image"
+source_dir = "/mnt/roms/ps2/incoming"
+done_dir = "/mnt/roms/ps2/done"
+work_dir = "/mnt/fast/rom-pipeline/ps2/work"
+state_dir = "/mnt/fast/rom-pipeline/ps2/state"
+log_dir = "/mnt/fast/rom-pipeline/ps2/logs"
+output_dir = "/mnt/fast/rom-pipeline/ps2/games"
+output_format = "decide-after-emulator-compatibility-test"
+batch_limit = 5
+
+[profiles.ps2]
+minimum_savings_percent = 10
+preserve_when_compression_is_not_worthwhile = true
