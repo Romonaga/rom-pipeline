@@ -179,19 +179,23 @@ fn publish_one(
     let group_log = group_log(adapter, job);
 
     if library.is_file() {
+        if file_size(&library)? != record.size {
+            return Err(PipelineError::Message(format!(
+                "recorded PS2 output size mismatch: {}",
+                library.display()
+            )));
+        }
         state.write_current(&format!(
-            "group={} step=publish-check-existing output={}",
+            "group={} step=publish-skip-existing output={}",
             job.id, record.output_name
         ))?;
-        verify_recorded_output(adapter, &library, record, &group_log)?;
-        set_modified_time(&library, record.modified_seconds)?;
         if staging.is_file() {
             let bytes = file_size(&staging)?;
             fs::remove_file(&staging).map_err(|error| {
                 PipelineError::io(format!("remove {}", staging.display()), error)
             })?;
             state.log(&format!(
-                "PUBLISH adopted verified PS2 library output and removed staging copy: {}",
+                "PUBLISH skipped existing PS2 library output and removed staging copy: {}",
                 record.output_name
             ))?;
             return Ok(Change::Applied {

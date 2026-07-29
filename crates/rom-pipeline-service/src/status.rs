@@ -188,6 +188,8 @@ fn publication_phase(current: &str, published: usize, total: usize) -> (String, 
         "Verifying staged output"
     } else if current.contains("step=publish-verify") {
         "Verifying final copy"
+    } else if current.contains("step=publish-skip-existing") {
+        "Skipping published output"
     } else if current.contains("step=publish-check-existing") {
         "Checking existing publication"
     } else if current.starts_with("publish stopped cleanly") {
@@ -495,6 +497,17 @@ mod tests {
         );
         assert_eq!(phase, "Verifying staged output");
         assert_eq!(game.as_deref(), Some("Next Game.chd"));
+    }
+
+    #[test]
+    fn publication_phase_describes_skipped_output() {
+        let (phase, game) = publication_phase(
+            "group=GAME3 step=publish-skip-existing output=Published Game.chd",
+            9,
+            10,
+        );
+        assert_eq!(phase, "Skipping published output");
+        assert_eq!(game.as_deref(), Some("Published Game.chd"));
     }
 
     #[test]

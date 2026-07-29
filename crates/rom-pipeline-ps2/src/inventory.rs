@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use rom_pipeline_core::{ComponentKind, Job, PipelineError, Result, SourceArtifact};
 use sha2::{Digest, Sha256};
@@ -15,17 +15,15 @@ impl Ps2Inventory {
     ///
     /// # Errors
     ///
-    /// Returns an error for malformed entries, duplicate source names, or
-    /// conflicting files in source and done.
+    /// Returns an error for malformed entries or duplicate source names.
     pub fn from_manifest(
         manifest: &Path,
-        source: &Path,
-        done: &Path,
+        _source: &Path,
+        _done: &Path,
         only_job: Option<&str>,
     ) -> Result<Self> {
         let text = fs::read_to_string(manifest)
             .map_err(|error| PipelineError::io(format!("read {}", manifest.display()), error))?;
-        let _present = collect_present(source, done)?;
         let mut seen = BTreeSet::new();
         let mut duplicate_names = BTreeMap::<String, usize>::new();
         let mut jobs = Vec::new();
@@ -95,47 +93,6 @@ impl Ps2Inventory {
     }
 }
 
-fn collect_present(source: &Path, done: &Path) -> Result<BTreeMap<String, PathBuf>> {
-    let mut files = BTreeMap::new();
-    collect(source, &mut files)?;
-    collect(done, &mut files)?;
-    Ok(files)
-}
-
-fn collect(root: &Path, files: &mut BTreeMap<String, PathBuf>) -> Result<()> {
-    let entries = match fs::read_dir(root) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(PipelineError::io(format!("read {}", root.display()), error)),
-    };
-    for entry in entries {
-        let entry =
-            entry.map_err(|error| PipelineError::io(format!("read {}", root.display()), error))?;
-        let path = entry.path();
-        if !entry
-            .file_type()
-            .map_err(|error| PipelineError::io(format!("stat {}", path.display()), error))?
-            .is_file()
-        {
-            continue;
-        }
-        let name = entry.file_name().into_string().map_err(|_| {
-            PipelineError::Message(format!("invalid UTF-8 filename: {}", path.display()))
-        })?;
-        if !is_disc_name(&name) {
-            continue;
-        }
-        if let Some(existing) = files.insert(name.clone(), path.clone()) {
-            return Err(PipelineError::Message(format!(
-                "PS2 source exists in source and done: {name} ({}, {})",
-                existing.display(),
-                path.display()
-            )));
-        }
-    }
-    Ok(())
-}
-
 fn is_disc_name(name: &str) -> bool {
     Path::new(name).extension().is_some_and(|extension| {
         extension.eq_ignore_ascii_case("iso") || extension.eq_ignore_ascii_case("bin")
@@ -200,6 +157,25 @@ mod tests {
             Ps2Inventory::from_manifest(&manifest, &source, &done, Some(&all.jobs[1].id))
                 .expect("selected inventory");
         assert_eq!(selected.jobs[0].output_name, "Game-2.chd");
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn inventory_allows_published_iso_alongside_done_source() {
+        let root = fixture_path();
+        let source = root.join("source");
+        let done = root.join("done");
+        fs::create_dir_all(&source).expect("source");
+        fs::create_dir_all(&done).expect("done");
+        fs::write(source.join("Game.iso"), b"published").expect("published output");
+        fs::write(done.join("Game.iso"), b"original").expect("done source");
+        let manifest = root.join("manifest.tsv");
+        fs::write(&manifest, "8\tGame.iso\n").expect("manifest");
+
+        let inventory =
+            Ps2Inventory::from_manifest(&manifest, &source, &done, None).expect("inventory");
+
+        assert_eq!(inventory.jobs.len(), 1);
         fs::remove_dir_all(root).expect("cleanup");
     }
 
