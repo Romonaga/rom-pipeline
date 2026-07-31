@@ -21,8 +21,8 @@ See [Architecture](docs/ARCHITECTURE.md) and
   and validation adapter
 - `crates/rom-pipeline-gamecube`: manifest-backed GameCube ISO inventory,
   lossless RVZ compression, and full round-trip validation adapter
-- `crates/rom-pipeline-nintendo-3ds`: Nintendo 3DS CCI inspection, crypto-flag
-  normalization, and byte-exact validation adapter
+- `crates/rom-pipeline-nintendo-3ds`: manifest-backed 3DS ZIP extraction,
+  decrypted CCI inspection, installable CIA creation, and content validation
 - `crates/rom-pipeline-psp`: PSP ISO identity validation, exact-duplicate
   grouping, CHD creation, and full round-trip validation adapter
 - `crates/rom-pipeline-ps2`: manifest-backed PS2 ISO/raw Mode 2 inventory,
@@ -38,6 +38,7 @@ See [Architecture](docs/ARCHITECTURE.md) and
 - `7z` for archive extraction
 - `chdman` for PSP and PS2 CHD conversion and verification
 - `dolphin-tool` for GameCube RVZ conversion and verification
+- `3dsconv`, `ctrtool`, Python 3, and `7z` for Nintendo 3DS CIA creation
 - Adapter-specific tools such as CDecrypt and ZArchive for Wii U processing
 
 ROM Pipeline does not include game data, console keys, firmware, or third-party

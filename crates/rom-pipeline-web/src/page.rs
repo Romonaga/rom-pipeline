@@ -1,7 +1,8 @@
 use std::fmt::Write;
 
 use rom_pipeline_core::{
-    AppConfig, GameCubeSettings, ProfileConfig, Ps2Settings, PspSettings, SystemKind, WiiUSettings,
+    AppConfig, GameCubeSettings, Nintendo3dsSettings, ProfileConfig, Ps2Settings, PspSettings,
+    SystemKind, WiiUSettings,
 };
 use rom_pipeline_service::ProfileStatus;
 
@@ -255,7 +256,12 @@ fn configuration_form(profile: &ProfileConfig) -> String {
             };
             gamecube_configuration_fields(profile, gamecube)
         }
-        SystemKind::Nintendo3ds => common_configuration_fields(profile),
+        SystemKind::Nintendo3ds => {
+            let Some(settings) = profile.nintendo_3ds.as_ref() else {
+                return "<p>Nintendo 3DS settings are missing.</p>".to_owned();
+            };
+            nintendo_3ds_configuration_fields(profile, settings)
+        }
         SystemKind::PlayStationPortable => {
             let Some(psp) = profile.psp.as_ref() else {
                 return "<p>PSP settings are missing.</p>".to_owned();
@@ -279,6 +285,21 @@ fn configuration_form(profile: &ProfileConfig) -> String {
         id = escape(&profile.id),
         fields = fields,
     )
+}
+
+fn nintendo_3ds_configuration_fields(
+    profile: &ProfileConfig,
+    settings: &Nintendo3dsSettings,
+) -> String {
+    let mut fields = vec![common_configuration_fields(profile)];
+    fields.extend([
+        path_field("Download manifest", "manifest", &settings.manifest),
+        path_field("7-Zip", "seven_zip", &settings.seven_zip),
+        path_field("Python", "python", &settings.python),
+        path_field("CCI-to-CIA converter", "converter", &settings.converter),
+        path_field("CTRTool", "ctrtool", &settings.ctrtool),
+    ]);
+    fields.join("")
 }
 
 fn gamecube_configuration_fields(profile: &ProfileConfig, gamecube: &GameCubeSettings) -> String {
@@ -344,7 +365,10 @@ fn ps2_configuration_fields(profile: &ProfileConfig, ps2: &Ps2Settings) -> Strin
 fn supports_library_actions(system: &SystemKind) -> bool {
     matches!(
         system,
-        SystemKind::GameCube | SystemKind::PlayStationPortable | SystemKind::PlayStation2
+        SystemKind::GameCube
+            | SystemKind::Nintendo3ds
+            | SystemKind::PlayStationPortable
+            | SystemKind::PlayStation2
     )
 }
 

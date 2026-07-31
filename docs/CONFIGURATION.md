@@ -37,9 +37,13 @@ while work, state, logs, and staged RVZ files live on FastDrive. Publish and
 Prune remain independent bounded actions; Prune is unavailable until every
 manifest job is complete and published.
 
-Nintendo 3DS uses `normalize_crypto_flags = true`. This adapter only normalizes
-images whose decrypted main content can already be proven by internal hashes;
-it does not accept or store console keys.
+Nintendo 3DS uses `source_format = "zip-3ds"` and `output_format = "cia"`.
+Settings provide the downloader manifest and absolute paths to `7z`, Python,
+`3dsconv`, and `ctrtool`. The adapter only processes cartridge images whose
+decrypted main content is proven by internal hashes; it does not accept or
+store console keys. ZIPs and isolated work remain on FastDrive, CIAs are staged
+there, Publish transfers verified CIAs to `library_dir`, and separately
+confirmed Prune is refused until the complete manifest set is published.
 
 PSP uses an absolute `chdman` path, the `zstd` codec, 2048-byte hunks, and full
 round-trip verification. Source ISOs may remain on NAS storage while work,

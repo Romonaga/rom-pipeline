@@ -410,6 +410,7 @@ dependencies = [
 name = "rom-pipeline-nintendo-3ds"
 version = "0.1.0"
 dependencies = [
+ "fs2",
  "rom-pipeline-core",
  "sha2",
 ]

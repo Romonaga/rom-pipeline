@@ -10,6 +10,7 @@ Usage:
   rom-pipeline doctor [options]
   rom-pipeline validate [options]
   rom-pipeline inventory [options]
+  rom-pipeline migrate-3ds-library [COUNT] [options]
   rom-pipeline publish [COUNT] [options]
   rom-pipeline prune [COUNT] --confirm-prune [options]
   rom-pipeline run [COUNT] [options]

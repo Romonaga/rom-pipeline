@@ -95,6 +95,11 @@ const fn default_rvz_compression_level() -> i32 {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Nintendo3dsSettings {
+    pub manifest: PathBuf,
+    pub seven_zip: PathBuf,
+    pub python: PathBuf,
+    pub converter: PathBuf,
+    pub ctrtool: PathBuf,
     #[serde(default = "enabled")]
     pub normalize_crypto_flags: bool,
 }
@@ -434,6 +439,11 @@ mod tests {
         profile.system = SystemKind::Nintendo3ds;
         profile.wiiu = None;
         profile.nintendo_3ds = Some(Nintendo3dsSettings {
+            manifest: PathBuf::from("/manifest.tsv"),
+            seven_zip: PathBuf::from("/usr/bin/7z"),
+            python: PathBuf::from("/usr/bin/python3"),
+            converter: PathBuf::from("/converter.py"),
+            ctrtool: PathBuf::from("/ctrtool"),
             normalize_crypto_flags: true,
         });
         let config = AppConfig {

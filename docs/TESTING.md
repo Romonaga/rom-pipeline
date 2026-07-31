@@ -54,6 +54,18 @@ status. Publish one job, verify the final RVZ with Dolphin, and confirm the
 source ISO remains in `done`. Do not prune until the full manifest is complete
 and published.
 
+## Nintendo 3DS ZIP-to-CIA pilot
+
+Select a completed ZIP with `inventory --profile 3ds`, then run it with
+`start 1 --profile 3ds --only JOB_ID`. Confirm ZIP testing, isolated cartridge
+extraction, source hash validation, CIA creation, CIA content validation, and
+staging are visible. Publish the CIA, install it on the target 3DS, and retain
+the source ZIP. The full-manifest guard must reject Prune while any download,
+conversion, or publication remains incomplete.
+
+For an existing CCI library, `migrate-3ds-library COUNT --profile 3ds`
+converts and validates CIAs in place without deleting or moving the CCIs.
+
 ## Legacy removal
 
 Completed after the first production base+update+DLC conversion:

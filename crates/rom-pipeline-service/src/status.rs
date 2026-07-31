@@ -251,11 +251,13 @@ fn pruned_source_names(log: &str) -> BTreeSet<String> {
     const PSP_EVENT: &str = " PRUNED verified PSP source: ";
     const PS2_EVENT: &str = " PRUNED verified PS2 source: ";
     const GAMECUBE_EVENT: &str = " PRUNED verified GameCube source: ";
+    const NINTENDO_3DS_EVENT: &str = " PRUNED verified 3DS ZIP source: ";
     log.lines()
         .filter_map(|line| {
             line.split_once(PSP_EVENT)
                 .or_else(|| line.split_once(PS2_EVENT))
                 .or_else(|| line.split_once(GAMECUBE_EVENT))
+                .or_else(|| line.split_once(NINTENDO_3DS_EVENT))
                 .map(|(_, name)| name.to_owned())
         })
         .collect()
@@ -264,7 +266,10 @@ fn pruned_source_names(log: &str) -> BTreeSet<String> {
 fn supports_library_actions(system: &SystemKind) -> bool {
     matches!(
         system,
-        SystemKind::GameCube | SystemKind::PlayStationPortable | SystemKind::PlayStation2
+        SystemKind::GameCube
+            | SystemKind::Nintendo3ds
+            | SystemKind::PlayStationPortable
+            | SystemKind::PlayStation2
     )
 }
 
@@ -305,6 +310,9 @@ fn count_sources(profile: &ProfileConfig, path: &Path, state: &StateStore) -> Re
                 path.extension().is_some_and(|extension| {
                     extension.eq_ignore_ascii_case("iso") || extension.eq_ignore_ascii_case("bin")
                 })
+            } else if matches!(profile.system, SystemKind::Nintendo3ds) {
+                path.extension()
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case("zip"))
             } else {
                 path.extension()
                     .is_some_and(|extension| extension.eq_ignore_ascii_case(&profile.source_format))

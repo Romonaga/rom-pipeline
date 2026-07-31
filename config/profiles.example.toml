@@ -49,20 +49,25 @@ verify_round_trip = true
 
 [[profiles]]
 id = "3ds"
-name = "Nintendo 3DS cartridge images"
+name = "Nintendo 3DS installable archives"
 system = "3ds"
-source_format = "3ds-cci"
-source_dir = "/mnt/roms/3ds/incoming"
-done_dir = "/mnt/roms/3ds/done"
+source_format = "zip-3ds"
+source_dir = "/mnt/fast/rom-pipeline/3ds/downloads"
+done_dir = "/mnt/fast/rom-pipeline/3ds/downloads/done"
 work_dir = "/mnt/fast/rom-pipeline/3ds/work"
 state_dir = "/mnt/fast/rom-pipeline/3ds/state"
 log_dir = "/mnt/fast/rom-pipeline/3ds/logs"
-output_dir = "/mnt/fast/rom-pipeline/3ds/cci"
+output_dir = "/mnt/fast/rom-pipeline/3ds/cia"
 library_dir = "/mnt/roms/3ds/library"
-output_format = "cci"
+output_format = "cia"
 batch_limit = 5
 
 [profiles.3ds]
+manifest = "/var/lib/rom-pipeline/3ds/manifest.tsv"
+seven_zip = "/usr/bin/7z"
+python = "/usr/bin/python3"
+converter = "/usr/local/libexec/rom-pipeline/3ds/3dsconv.py"
+ctrtool = "/usr/local/libexec/rom-pipeline/3ds/ctrtool"
 normalize_crypto_flags = true
 
 [[profiles]]

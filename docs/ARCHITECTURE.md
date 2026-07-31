@@ -31,7 +31,8 @@ for access from other hosts.
 4. **System adapters**
    - Wii U NUS archives to validated WUA
    - GameCube ISO images to lossless, round-trip-verified RVZ
-   - Nintendo 3DS CCI images with proven decrypted payloads to normalized CCI
+   - Nintendo 3DS ZIP archives containing decrypted cartridge images to
+     validated, installable CIA
    - PSP ISO images to verified DVD-mode CHD, with exact duplicates grouped
    - PS2 ISO and proven raw Mode 2 disc images to verified CHD or a preserved
      original when compression is not worthwhile
@@ -96,17 +97,24 @@ verification. Pruning is refused until all manifest jobs are complete and
 published, and it permanently removes an ISO only after revalidating its final
 RVZ.
 
-## Nintendo 3DS normalization
+## Nintendo 3DS installable archives
 
-The Nintendo 3DS adapter inventories `.3ds` and `.cci` cartridge images. It
-validates the main NCCH extended-header, ExeFS, and RomFS hashes before
-normalizing crypto flags. It then proves the output differs from the source only
-at the two permitted NCCH flag bytes, publishes a `.cci` atomically, records its
-SHA-256 fingerprint, and moves the untouched source into `done`.
+The Nintendo 3DS adapter inventories the downloader's full ZIP manifest, so
+unfinished downloads remain visible as waiting jobs and pruning cannot shrink
+the known set. Each ready ZIP is CRC-tested and extracted in an isolated
+FastDrive work directory. The adapter requires exactly one `.3ds` or `.cci`
+image, validates its main NCCH extended-header, ExeFS, and RomFS hashes, and
+normalizes only the decrypted-content crypto flags in the disposable work copy.
 
-Images whose main payload is genuinely encrypted or corrupt fail without
-creating a final output. Actual decryption is deliberately a separate future
-path requiring user-owned console keys.
+The normalized cartridge image is converted to CIA. ROM Pipeline independently
+parses the CIA header and TMD, verifies every recorded content SHA-256, validates
+the main NCCH hashes and title ID, and also runs CTRTool before atomic staging.
+Conversion, final-library publication, and source-ZIP pruning are separate
+locked actions. Images whose payload is encrypted or corrupt fail without
+creating an output; ROM Pipeline does not accept or store console keys.
+
+An explicit one-off migration command converts existing library CCIs to CIAs
+while preserving every original CCI for cold storage.
 
 ## PSP compression
 

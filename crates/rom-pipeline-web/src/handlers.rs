@@ -106,10 +106,13 @@ pub async fn publish_profile(
     let profile = config.profile(&form.profile)?;
     if !matches!(
         profile.system,
-        SystemKind::GameCube | SystemKind::PlayStationPortable | SystemKind::PlayStation2
+        SystemKind::GameCube
+            | SystemKind::Nintendo3ds
+            | SystemKind::PlayStationPortable
+            | SystemKind::PlayStation2
     ) {
         return Err(WebError(PipelineError::Message(
-            "publish is currently implemented only for GameCube, PSP, and PS2".to_owned(),
+            "publish is currently implemented only for 3DS, GameCube, PSP, and PS2".to_owned(),
         )));
     }
     start_publish_service(
@@ -134,10 +137,13 @@ pub async fn prune_profile(
     let profile = config.profile(&form.profile)?;
     if !matches!(
         profile.system,
-        SystemKind::GameCube | SystemKind::PlayStationPortable | SystemKind::PlayStation2
+        SystemKind::GameCube
+            | SystemKind::Nintendo3ds
+            | SystemKind::PlayStationPortable
+            | SystemKind::PlayStation2
     ) {
         return Err(WebError(PipelineError::Message(
-            "prune is currently implemented only for GameCube, PSP, and PS2".to_owned(),
+            "prune is currently implemented only for 3DS, GameCube, PSP, and PS2".to_owned(),
         )));
     }
     start_prune_service(
@@ -164,6 +170,10 @@ pub struct SaveProfileForm {
     output_format: String,
     batch_limit: usize,
     manifest: Option<String>,
+    seven_zip: Option<String>,
+    python: Option<String>,
+    converter: Option<String>,
+    ctrtool: Option<String>,
     cdecrypt: Option<String>,
     zarchive: Option<String>,
     wait_seconds: Option<u64>,
@@ -196,18 +206,18 @@ pub async fn save_profile(
         .ok_or_else(|| {
             PipelineError::InvalidConfig(format!("unknown profile: {}", form.profile))
         })?;
-    profile.name = form.name;
-    profile.source_format = form.source_format;
-    profile.source_dir = form.source_dir.into();
-    profile.done_dir = form.done_dir.into();
-    profile.work_dir = form.work_dir.into();
-    profile.state_dir = form.state_dir.into();
-    profile.log_dir = form.log_dir.into();
-    profile.output_dir = form.output_dir.into();
-    if let Some(library_dir) = form.library_dir {
+    profile.name.clone_from(&form.name);
+    profile.source_format.clone_from(&form.source_format);
+    profile.source_dir = form.source_dir.clone().into();
+    profile.done_dir = form.done_dir.clone().into();
+    profile.work_dir = form.work_dir.clone().into();
+    profile.state_dir = form.state_dir.clone().into();
+    profile.log_dir = form.log_dir.clone().into();
+    profile.output_dir = form.output_dir.clone().into();
+    if let Some(library_dir) = &form.library_dir {
         profile.library_dir = (!library_dir.trim().is_empty()).then(|| library_dir.into());
     }
-    profile.output_format = form.output_format;
+    profile.output_format.clone_from(&form.output_format);
     profile.batch_limit = form.batch_limit;
     match profile.system {
         SystemKind::WiiU => {
@@ -239,7 +249,9 @@ pub async fn save_profile(
                 PipelineError::InvalidConfig("verify_round_trip is required".to_owned())
             })?;
         }
-        SystemKind::Nintendo3ds => {}
+        SystemKind::Nintendo3ds => {
+            update_3ds_settings(profile, &form)?;
+        }
         SystemKind::PlayStationPortable => {
             let psp = profile
                 .psp
@@ -278,6 +290,22 @@ pub async fn save_profile(
     }
     config.save(&state.config_path)?;
     Ok(Redirect::to("/"))
+}
+
+fn update_3ds_settings(
+    profile: &mut rom_pipeline_core::ProfileConfig,
+    form: &SaveProfileForm,
+) -> Result<(), PipelineError> {
+    let settings = profile
+        .nintendo_3ds
+        .as_mut()
+        .ok_or_else(|| PipelineError::InvalidConfig("missing Nintendo 3DS settings".to_owned()))?;
+    settings.manifest = required(form.manifest.clone(), "manifest")?.into();
+    settings.seven_zip = required(form.seven_zip.clone(), "seven_zip")?.into();
+    settings.python = required(form.python.clone(), "python")?.into();
+    settings.converter = required(form.converter.clone(), "converter")?.into();
+    settings.ctrtool = required(form.ctrtool.clone(), "ctrtool")?.into();
+    Ok(())
 }
 
 fn required(value: Option<String>, field: &str) -> Result<String, PipelineError> {

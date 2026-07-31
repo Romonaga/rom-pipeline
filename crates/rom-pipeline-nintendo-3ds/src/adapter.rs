@@ -1,5 +1,7 @@
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 
 use rom_pipeline_core::{
     CompletionRecord, Job, JobOutcome, PipelineAdapter, PipelineError, ProfileConfig, Readiness,
@@ -45,13 +47,37 @@ impl Nintendo3dsAdapter {
         if !self.profile.source_dir.is_dir() {
             return Err(PipelineError::MissingPath(self.profile.source_dir.clone()));
         }
-        let settings = self.profile.nintendo_3ds.as_ref().ok_or_else(|| {
-            PipelineError::InvalidConfig("missing Nintendo 3DS settings".to_owned())
-        })?;
+        if !self.profile.source_format.eq_ignore_ascii_case("zip-3ds")
+            || !self.profile.output_format.eq_ignore_ascii_case("cia")
+        {
+            return Err(PipelineError::InvalidConfig(
+                "Nintendo 3DS conversion requires source_format=zip-3ds and output_format=cia"
+                    .to_owned(),
+            ));
+        }
+        let settings = self.settings()?;
         if !settings.normalize_crypto_flags {
             return Err(PipelineError::InvalidConfig(
                 "Nintendo 3DS crypto-flag normalization must be enabled".to_owned(),
             ));
+        }
+        if !settings.manifest.is_file() {
+            return Err(PipelineError::MissingPath(settings.manifest.clone()));
+        }
+        for tool in [
+            &settings.seven_zip,
+            &settings.python,
+            &settings.converter,
+            &settings.ctrtool,
+        ] {
+            let metadata = fs::metadata(tool)
+                .map_err(|error| PipelineError::io(format!("stat {}", tool.display()), error))?;
+            if !metadata.is_file() || metadata.permissions().mode() & 0o111 == 0 {
+                return Err(PipelineError::Message(format!(
+                    "required 3DS tool is not executable: {}",
+                    tool.display()
+                )));
+            }
         }
         for path in [
             &self.profile.done_dir,
@@ -59,11 +85,39 @@ impl Nintendo3dsAdapter {
             &self.profile.state_dir,
             &self.profile.log_dir,
             &self.profile.output_dir,
+            &self.profile.log_dir.join("groups"),
+            &self.profile.work_dir.join("groups"),
         ] {
             fs::create_dir_all(path)
                 .map_err(|error| PipelineError::io(format!("create {}", path.display()), error))?;
         }
+        for path in [
+            &self.profile.source_dir,
+            &self.profile.work_dir,
+            &self.profile.output_dir,
+        ] {
+            let status = Command::new("timeout")
+                .args(["20", "stat", "-f"])
+                .arg(path)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .map_err(|error| PipelineError::io(format!("probe {}", path.display()), error))?;
+            if !status.success() {
+                return Err(PipelineError::Message(format!(
+                    "filesystem is not responding: {}",
+                    path.display()
+                )));
+            }
+        }
         Ok(())
+    }
+
+    pub(crate) fn settings(&self) -> Result<&rom_pipeline_core::Nintendo3dsSettings> {
+        self.profile
+            .nintendo_3ds
+            .as_ref()
+            .ok_or_else(|| PipelineError::InvalidConfig("missing Nintendo 3DS settings".to_owned()))
     }
 
     pub(crate) fn locate(&self, name: &str) -> Result<Option<PathBuf>> {
@@ -126,10 +180,7 @@ impl Nintendo3dsAdapter {
 
 impl PipelineAdapter for Nintendo3dsAdapter {
     fn inventory(&self, only_job: Option<&str>) -> Result<Vec<Job>> {
-        Ok(
-            Nintendo3dsInventory::scan(&self.profile.source_dir, &self.profile.done_dir, only_job)?
-                .jobs,
-        )
+        Ok(Nintendo3dsInventory::from_manifest(&self.settings()?.manifest, only_job)?.jobs)
     }
 
     fn readiness(&self, job: &Job) -> Result<Readiness> {

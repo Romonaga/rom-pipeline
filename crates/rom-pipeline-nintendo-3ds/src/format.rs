@@ -36,6 +36,13 @@ pub struct CciInspection {
     pub verified_regions: usize,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CiaInspection {
+    pub title_id: String,
+    pub content_count: usize,
+    pub content_bytes: u64,
+}
+
 impl CciInspection {
     #[must_use]
     pub const fn is_marked_decrypted(&self) -> bool {
@@ -156,6 +163,210 @@ pub fn inspect_cci(path: &Path) -> Result<CciInspection> {
     })
 }
 
+/// Validates a CIA container, all TMD-recorded content hashes, and the main
+/// NCCH payload hashes.
+///
+/// Fake ticket and TMD signatures used by standard homebrew-installable CIAs
+/// are deliberately not treated as integrity failures.
+///
+/// # Errors
+///
+/// Returns an error for malformed section ranges, content hash mismatches,
+/// inconsistent title IDs, or invalid main NCCH content.
+pub fn inspect_cia(path: &Path) -> Result<CiaInspection> {
+    let mut file = File::open(path)
+        .map_err(|error| PipelineError::io(format!("open {}", path.display()), error))?;
+    let file_size = file
+        .metadata()
+        .map_err(|error| PipelineError::io(format!("stat {}", path.display()), error))?
+        .len();
+    let header_size = u64::from(read_u32(&mut file, 0)?);
+    if header_size < 0x20 || header_size > file_size {
+        return Err(PipelineError::Message("invalid CIA header size".to_owned()));
+    }
+    let cert_size = u64::from(read_u32(&mut file, 0x08)?);
+    let ticket_size = u64::from(read_u32(&mut file, 0x0c)?);
+    let tmd_size = u64::from(read_u32(&mut file, 0x10)?);
+    let meta_size = u64::from(read_u32(&mut file, 0x14)?);
+    let recorded_content_size = read_u64(&mut file, 0x18)?;
+    let cert_offset = align_64(header_size)?;
+    let ticket_offset = align_64(checked_end(cert_offset, cert_size, "CIA certificate")?)?;
+    let tmd_offset = align_64(checked_end(ticket_offset, ticket_size, "CIA ticket")?)?;
+    let content_offset = align_64(checked_end(tmd_offset, tmd_size, "CIA TMD")?)?;
+    ensure_range(cert_offset, cert_size, file_size, "CIA certificate")?;
+    ensure_range(ticket_offset, ticket_size, file_size, "CIA ticket")?;
+    ensure_range(tmd_offset, tmd_size, file_size, "CIA TMD")?;
+
+    if tmd_size < 0xb04 {
+        return Err(PipelineError::Message("CIA TMD is too small".to_owned()));
+    }
+    let title_id_bytes = read_array::<8>(&mut file, tmd_offset + 0x18c)?;
+    let title_id = format!("{:016X}", u64::from_be_bytes(title_id_bytes));
+    let content_count = usize::from(read_u16_be(&mut file, tmd_offset + 0x1de)?);
+    if content_count == 0 {
+        return Err(PipelineError::Message("CIA contains no content".to_owned()));
+    }
+    let records_size = (content_count as u64)
+        .checked_mul(0x30)
+        .ok_or_else(|| PipelineError::Message("CIA content records overflow".to_owned()))?;
+    ensure_range(
+        tmd_offset + 0xb04,
+        records_size,
+        tmd_offset + tmd_size,
+        "CIA content records",
+    )?;
+
+    let mut cursor = content_offset;
+    let mut total = 0_u64;
+    let mut main_content = None;
+    for index in 0..content_count {
+        let record = tmd_offset + 0xb04 + index as u64 * 0x30;
+        let content_index = read_u16_be(&mut file, record + 4)?;
+        let size = read_u64_be(&mut file, record + 8)?;
+        let expected_hash = read_array::<32>(&mut file, record + 0x10)?;
+        ensure_range(cursor, size, file_size, "CIA content")?;
+        if sha256_region(&mut file, cursor, size)? != expected_hash {
+            return Err(PipelineError::Message(format!(
+                "CIA content hash mismatch for index {content_index}"
+            )));
+        }
+        if content_index == 0 {
+            main_content = Some((cursor, size));
+        }
+        cursor = checked_end(cursor, size, "CIA content")?;
+        total = total
+            .checked_add(size)
+            .ok_or_else(|| PipelineError::Message("CIA content size overflows".to_owned()))?;
+    }
+    if total != recorded_content_size {
+        return Err(PipelineError::Message(format!(
+            "CIA content size mismatch: header={recorded_content_size} records={total}"
+        )));
+    }
+    let (main_offset, main_size) = main_content
+        .ok_or_else(|| PipelineError::Message("CIA has no main content index 0".to_owned()))?;
+    let main = inspect_ncch(&mut file, main_offset, main_size)?;
+    if main.title_id != title_id {
+        return Err(PipelineError::Message(format!(
+            "CIA title ID differs between TMD ({title_id}) and NCCH ({})",
+            main.title_id
+        )));
+    }
+    let meta_offset = align_64(cursor)?;
+    ensure_range(meta_offset, meta_size, file_size, "CIA metadata")?;
+    Ok(CiaInspection {
+        title_id,
+        content_count,
+        content_bytes: total,
+    })
+}
+
+fn inspect_ncch(file: &mut File, offset: u64, size: u64) -> Result<CciInspection> {
+    let end = checked_end(offset, size, "NCCH content")?;
+    expect_magic(file, offset + NCCH_MAGIC_OFFSET, *b"NCCH", "NCCH")?;
+    let declared_size = u64::from(read_u32(file, offset + 0x104)?) * MEDIA_UNIT;
+    if declared_size == 0 || declared_size > size {
+        return Err(PipelineError::Message(
+            "invalid CIA NCCH content size".to_owned(),
+        ));
+    }
+    let title_id = format!(
+        "{:016X}",
+        u64::from_le_bytes(read_array::<8>(file, offset + TITLE_ID_OFFSET)?)
+    );
+    let flags = read_array::<8>(file, offset + FLAGS_OFFSET)?;
+    let mut verified_regions = 0;
+    let ext_header_size = u64::from(read_u32(file, offset + EXT_HEADER_SIZE_OFFSET)?);
+    if ext_header_size > 0 {
+        verify_region(
+            file,
+            offset + EXT_HEADER_HASH_OFFSET,
+            offset + EXT_HEADER_OFFSET,
+            ext_header_size,
+            end,
+            "extended header",
+        )?;
+        verified_regions += 1;
+    }
+    let exefs_hash_units = u64::from(read_u32(file, offset + EXEFS_HASH_SIZE_FIELD)?);
+    if exefs_hash_units == 0 {
+        return Err(PipelineError::Message(
+            "CIA main NCCH has no verifiable ExeFS hash region".to_owned(),
+        ));
+    }
+    let exefs_offset = u64::from(read_u32(file, offset + EXEFS_OFFSET_FIELD)?) * MEDIA_UNIT;
+    verify_region(
+        file,
+        offset + EXEFS_HASH_OFFSET,
+        offset + exefs_offset,
+        exefs_hash_units * MEDIA_UNIT,
+        end,
+        "ExeFS",
+    )?;
+    verified_regions += 1;
+    let romfs_hash_units = u64::from(read_u32(file, offset + ROMFS_HASH_SIZE_FIELD)?);
+    if romfs_hash_units > 0 {
+        let romfs_offset = u64::from(read_u32(file, offset + ROMFS_OFFSET_FIELD)?) * MEDIA_UNIT;
+        verify_region(
+            file,
+            offset + ROMFS_HASH_OFFSET,
+            offset + romfs_offset,
+            romfs_hash_units * MEDIA_UNIT,
+            end,
+            "RomFS",
+        )?;
+        verified_regions += 1;
+    }
+    Ok(CciInspection {
+        title_id,
+        partition_offset: offset,
+        flags,
+        verified_regions,
+    })
+}
+
+fn sha256_region(file: &mut File, offset: u64, size: u64) -> Result<[u8; 32]> {
+    file.seek(SeekFrom::Start(offset))
+        .map_err(|error| PipelineError::io(format!("seek to 0x{offset:X}"), error))?;
+    let mut remaining = size;
+    let mut digest = Sha256::new();
+    let mut buffer = vec![0_u8; 1024 * 1024];
+    while remaining > 0 {
+        let wanted =
+            usize::try_from(remaining.min(buffer.len() as u64)).expect("bounded by buffer length");
+        file.read_exact(&mut buffer[..wanted])
+            .map_err(|error| PipelineError::io("read CIA content", error))?;
+        digest.update(&buffer[..wanted]);
+        remaining -= wanted as u64;
+    }
+    Ok(digest.finalize().into())
+}
+
+fn align_64(value: u64) -> Result<u64> {
+    value
+        .checked_add(0x3f)
+        .map(|rounded| rounded & !0x3f)
+        .ok_or_else(|| PipelineError::Message("CIA section alignment overflows".to_owned()))
+}
+
+fn checked_end(offset: u64, size: u64, name: &str) -> Result<u64> {
+    offset
+        .checked_add(size)
+        .ok_or_else(|| PipelineError::Message(format!("{name} range overflows")))
+}
+
+fn read_u16_be(file: &mut File, offset: u64) -> Result<u16> {
+    Ok(u16::from_be_bytes(read_array(file, offset)?))
+}
+
+fn read_u64(file: &mut File, offset: u64) -> Result<u64> {
+    Ok(u64::from_le_bytes(read_array(file, offset)?))
+}
+
+fn read_u64_be(file: &mut File, offset: u64) -> Result<u64> {
+    Ok(u64::from_be_bytes(read_array(file, offset)?))
+}
+
 fn identify(file: &mut File, file_size: u64) -> Result<CciIdentity> {
     expect_magic(file, NCSD_MAGIC_OFFSET, *b"NCSD", "NCSD")?;
 
@@ -254,7 +465,7 @@ mod tests {
 
     use sha2::{Digest, Sha256};
 
-    use super::inspect_cci;
+    use super::{inspect_cci, inspect_cia};
 
     #[test]
     fn proves_decrypted_payload_with_bad_crypto_flags() {
@@ -277,6 +488,47 @@ mod tests {
         fs::write(&path, bytes).expect("write fixture");
         assert!(inspect_cci(&path).is_err());
         fs::remove_file(path).expect("remove fixture");
+    }
+
+    #[test]
+    fn validates_cia_content_and_nested_ncch_hashes() {
+        let path = fixture_path("cia").with_extension("cia");
+        fs::write(&path, cia_fixture()).expect("write CIA fixture");
+        let inspection = inspect_cia(&path).expect("inspect CIA");
+        assert_eq!(inspection.title_id, "0004000000123400");
+        assert_eq!(inspection.content_count, 1);
+        fs::remove_file(path).expect("remove fixture");
+    }
+
+    #[test]
+    fn rejects_cia_with_changed_content() {
+        let path = fixture_path("bad-cia").with_extension("cia");
+        let mut bytes = cia_fixture();
+        let last = bytes.len() - 1;
+        bytes[last] ^= 0xff;
+        fs::write(&path, bytes).expect("write CIA fixture");
+        assert!(inspect_cia(&path).is_err());
+        fs::remove_file(path).expect("remove fixture");
+    }
+
+    fn cia_fixture() -> Vec<u8> {
+        const TMD_OFFSET: usize = 0x2040;
+        const CONTENT_OFFSET: usize = 0x2b80;
+        const PARTITION: usize = 0x4000;
+        let cci = fixture(true);
+        let content = &cci[PARTITION..];
+        let mut cia = vec![0_u8; CONTENT_OFFSET + content.len()];
+        cia[0..4].copy_from_slice(&0x2020_u32.to_le_bytes());
+        cia[0x10..0x14].copy_from_slice(&0x0b34_u32.to_le_bytes());
+        cia[0x18..0x20].copy_from_slice(&(content.len() as u64).to_le_bytes());
+        cia[TMD_OFFSET + 0x18c..TMD_OFFSET + 0x194]
+            .copy_from_slice(&0x0004_0000_0012_3400_u64.to_be_bytes());
+        cia[TMD_OFFSET + 0x1de..TMD_OFFSET + 0x1e0].copy_from_slice(&1_u16.to_be_bytes());
+        let record = TMD_OFFSET + 0xb04;
+        cia[record + 8..record + 0x10].copy_from_slice(&(content.len() as u64).to_be_bytes());
+        cia[record + 0x10..record + 0x30].copy_from_slice(&Sha256::digest(content));
+        cia[CONTENT_OFFSET..].copy_from_slice(content);
+        cia
     }
 
     fn fixture(marked_decrypted: bool) -> Vec<u8> {
