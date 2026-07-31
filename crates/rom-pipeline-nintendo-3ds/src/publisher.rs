@@ -157,6 +157,7 @@ fn publish_one(
     let log = group_log(adapter, job);
     if library.is_file() {
         verify_record(adapter, &library, record, &log)?;
+        set_modified_time(&library, record.modified_seconds)?;
         if staging.is_file() {
             let bytes = file_size(&staging)?;
             fs::remove_file(&staging).map_err(|error| {
@@ -189,6 +190,7 @@ fn publish_one(
         job.id, record.output_name
     ))?;
     verify_record(adapter, &partial, record, &log)?;
+    set_modified_time(&partial, record.modified_seconds)?;
     fs::rename(&partial, &library)
         .map_err(|error| PipelineError::io(format!("publish {}", library.display()), error))?;
     let bytes = file_size(&staging)?;
@@ -290,6 +292,24 @@ fn file_size(path: &Path) -> Result<u64> {
     fs::metadata(path)
         .map(|metadata| metadata.len())
         .map_err(|error| PipelineError::io(format!("stat {}", path.display()), error))
+}
+
+fn set_modified_time(path: &Path, seconds: u64) -> Result<()> {
+    let status = std::process::Command::new("touch")
+        .args(["-m", "-d"])
+        .arg(format!("@{seconds}"))
+        .arg("--")
+        .arg(path)
+        .status()
+        .map_err(|error| PipelineError::io(format!("touch {}", path.display()), error))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(PipelineError::CommandFailed {
+            command: format!("touch {}", path.display()),
+            status: status.to_string(),
+        })
+    }
 }
 
 fn remove_if_exists(path: &Path) -> Result<()> {
