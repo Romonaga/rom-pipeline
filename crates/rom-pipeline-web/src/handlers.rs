@@ -106,10 +106,10 @@ pub async fn publish_profile(
     let profile = config.profile(&form.profile)?;
     if !matches!(
         profile.system,
-        SystemKind::PlayStationPortable | SystemKind::PlayStation2
+        SystemKind::GameCube | SystemKind::PlayStationPortable | SystemKind::PlayStation2
     ) {
         return Err(WebError(PipelineError::Message(
-            "publish is currently implemented only for PSP and PS2".to_owned(),
+            "publish is currently implemented only for GameCube, PSP, and PS2".to_owned(),
         )));
     }
     start_publish_service(
@@ -134,10 +134,10 @@ pub async fn prune_profile(
     let profile = config.profile(&form.profile)?;
     if !matches!(
         profile.system,
-        SystemKind::PlayStationPortable | SystemKind::PlayStation2
+        SystemKind::GameCube | SystemKind::PlayStationPortable | SystemKind::PlayStation2
     ) {
         return Err(WebError(PipelineError::Message(
-            "prune is currently implemented only for PSP and PS2".to_owned(),
+            "prune is currently implemented only for GameCube, PSP, and PS2".to_owned(),
         )));
     }
     start_prune_service(
@@ -168,6 +168,10 @@ pub struct SaveProfileForm {
     zarchive: Option<String>,
     wait_seconds: Option<u64>,
     chdman: Option<String>,
+    dolphin_tool: Option<String>,
+    block_size: Option<u32>,
+    compression: Option<String>,
+    compression_level: Option<i32>,
     codec: Option<String>,
     hunk_size: Option<u32>,
     verify_round_trip: Option<bool>,
@@ -216,6 +220,23 @@ pub async fn save_profile(
             wiiu.zarchive = required(form.zarchive, "zarchive")?.into();
             wiiu.wait_seconds = form.wait_seconds.ok_or_else(|| {
                 PipelineError::InvalidConfig("wait_seconds is required".to_owned())
+            })?;
+        }
+        SystemKind::GameCube => {
+            let gamecube = profile.gamecube.as_mut().ok_or_else(|| {
+                PipelineError::InvalidConfig("missing GameCube settings".to_owned())
+            })?;
+            gamecube.manifest = required(form.manifest, "manifest")?.into();
+            gamecube.dolphin_tool = required(form.dolphin_tool, "dolphin_tool")?.into();
+            gamecube.block_size = form
+                .block_size
+                .ok_or_else(|| PipelineError::InvalidConfig("block_size is required".to_owned()))?;
+            gamecube.compression = required(form.compression, "compression")?;
+            gamecube.compression_level = form.compression_level.ok_or_else(|| {
+                PipelineError::InvalidConfig("compression_level is required".to_owned())
+            })?;
+            gamecube.verify_round_trip = form.verify_round_trip.ok_or_else(|| {
+                PipelineError::InvalidConfig("verify_round_trip is required".to_owned())
             })?;
         }
         SystemKind::Nintendo3ds => {}

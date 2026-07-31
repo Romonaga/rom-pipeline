@@ -5,6 +5,10 @@ use rom_pipeline_core::{
     AppConfig, BatchPolicy, PipelineAdapter, PipelineError, Readiness, Result, RunOptions,
     StateStore, SystemKind,
 };
+use rom_pipeline_gamecube::{
+    GameCubeAdapter, prune_sources as prune_gamecube_sources,
+    publish_library as publish_gamecube_library,
+};
 use rom_pipeline_nintendo_3ds::Nintendo3dsAdapter;
 use rom_pipeline_ps2::{
     Ps2Adapter, prune_sources as prune_ps2_sources, publish_library as publish_ps2_library,
@@ -65,6 +69,15 @@ fn publish(cli: &Cli) -> Result<()> {
     let profile = config.profile(&cli.profile)?.clone();
     let limit = BatchPolicy::new(cli.limit.unwrap_or(profile.batch_limit))?;
     let (completed, failed, removed, reclaimed) = match profile.system {
+        SystemKind::GameCube => {
+            let summary = publish_gamecube_library(&GameCubeAdapter::new(profile)?, limit)?;
+            (
+                summary.completed_jobs,
+                summary.failed_jobs,
+                summary.files_removed,
+                summary.bytes_reclaimed,
+            )
+        }
         SystemKind::PlayStationPortable => {
             let summary = publish_library(&PspAdapter::new(profile)?, limit)?;
             (
@@ -85,7 +98,7 @@ fn publish(cli: &Cli) -> Result<()> {
         }
         _ => {
             return Err(PipelineError::Message(
-                "publish is currently implemented only for PSP and PS2".to_owned(),
+                "publish is currently implemented only for GameCube, PSP, and PS2".to_owned(),
             ));
         }
     };
@@ -106,6 +119,15 @@ fn prune(cli: &Cli) -> Result<()> {
     let profile = config.profile(&cli.profile)?.clone();
     let limit = BatchPolicy::new(cli.limit.unwrap_or(profile.batch_limit))?;
     let (completed, failed, removed, reclaimed) = match profile.system {
+        SystemKind::GameCube => {
+            let summary = prune_gamecube_sources(&GameCubeAdapter::new(profile)?, limit)?;
+            (
+                summary.completed_jobs,
+                summary.failed_jobs,
+                summary.files_removed,
+                summary.bytes_reclaimed,
+            )
+        }
         SystemKind::PlayStationPortable => {
             let summary = prune_sources(&PspAdapter::new(profile)?, limit)?;
             (
@@ -126,7 +148,7 @@ fn prune(cli: &Cli) -> Result<()> {
         }
         _ => {
             return Err(PipelineError::Message(
-                "prune is currently implemented only for PSP and PS2".to_owned(),
+                "prune is currently implemented only for GameCube, PSP, and PS2".to_owned(),
             ));
         }
     };
@@ -142,6 +164,7 @@ fn doctor(cli: &Cli) -> Result<()> {
     let profile = config.profile(&cli.profile)?.clone();
     match profile.system {
         SystemKind::WiiU => WiiUAdapter::new(profile.clone())?.preflight()?,
+        SystemKind::GameCube => GameCubeAdapter::new(profile.clone())?.preflight()?,
         SystemKind::Nintendo3ds => Nintendo3dsAdapter::new(profile.clone())?.preflight()?,
         SystemKind::PlayStationPortable => PspAdapter::new(profile.clone())?.preflight()?,
         SystemKind::PlayStation2 => Ps2Adapter::new(profile.clone())?.preflight()?,
@@ -162,6 +185,14 @@ fn inventory(cli: &Cli) -> Result<()> {
     match profile.system {
         SystemKind::WiiU => {
             inventory_adapter(&WiiUAdapter::new(profile.clone())?, &profile, &state, cli)?;
+        }
+        SystemKind::GameCube => {
+            inventory_adapter(
+                &GameCubeAdapter::new(profile.clone())?,
+                &profile,
+                &state,
+                cli,
+            )?;
         }
         SystemKind::Nintendo3ds => {
             inventory_adapter(

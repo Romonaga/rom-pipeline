@@ -25,6 +25,29 @@ wait_seconds = 60
 source_service = "archive-wiiu-download.service"
 
 [[profiles]]
+id = "gamecube"
+name = "Nintendo GameCube disc images"
+system = "gamecube"
+source_format = "iso"
+source_dir = "/mnt/roms/gamecube/incoming"
+done_dir = "/mnt/roms/gamecube/done"
+work_dir = "/mnt/fast/rom-pipeline/gamecube/work"
+state_dir = "/mnt/fast/rom-pipeline/gamecube/state"
+log_dir = "/mnt/fast/rom-pipeline/gamecube/logs"
+output_dir = "/mnt/fast/rom-pipeline/gamecube/rvz"
+library_dir = "/mnt/roms/gamecube/library"
+output_format = "rvz"
+batch_limit = 5
+
+[profiles.gamecube]
+manifest = "/var/lib/rom-pipeline/gamecube/manifest.tsv"
+dolphin_tool = "/usr/games/dolphin-tool"
+block_size = 131072
+compression = "zstd"
+compression_level = 5
+verify_round_trip = true
+
+[[profiles]]
 id = "3ds"
 name = "Nintendo 3DS cartridge images"
 system = "3ds"

@@ -9,6 +9,7 @@ use rom_pipeline_core::{
     Job, JobOutcome, PipelineAdapter, PipelineError, ProfileConfig, Readiness, Result, RunOptions,
     RunSummary, StateStore, StopToken, SystemKind,
 };
+use rom_pipeline_gamecube::GameCubeAdapter;
 use rom_pipeline_nintendo_3ds::Nintendo3dsAdapter;
 use rom_pipeline_ps2::Ps2Adapter;
 use rom_pipeline_psp::PspAdapter;
@@ -25,6 +26,11 @@ pub fn run_profile(profile: ProfileConfig, options: &RunOptions) -> Result<RunSu
     match profile.system {
         SystemKind::WiiU => {
             let adapter = WiiUAdapter::new(profile.clone())?;
+            adapter.preflight()?;
+            Runner::new(profile, adapter).run(options)
+        }
+        SystemKind::GameCube => {
+            let adapter = GameCubeAdapter::new(profile.clone())?;
             adapter.preflight()?;
             Runner::new(profile, adapter).run(options)
         }

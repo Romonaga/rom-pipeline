@@ -7,6 +7,7 @@ use rom_pipeline_core::{
     CompletionRecord, PipelineAdapter, PipelineError, ProfileConfig, Result, StateStore,
     SystemKind, completion_output_valid,
 };
+use rom_pipeline_gamecube::GameCubeAdapter;
 use rom_pipeline_nintendo_3ds::Nintendo3dsAdapter;
 use rom_pipeline_ps2::Ps2Adapter;
 use rom_pipeline_psp::PspAdapter;
@@ -78,6 +79,10 @@ pub fn profile_status(profile: &ProfileConfig) -> Result<ProfileStatus> {
     let (total_groups, completed_groups) = match profile.system {
         SystemKind::WiiU => {
             let adapter = WiiUAdapter::new(profile.clone())?;
+            completion_counts(&adapter, profile, &state)?
+        }
+        SystemKind::GameCube => {
+            let adapter = GameCubeAdapter::new(profile.clone())?;
             completion_counts(&adapter, profile, &state)?
         }
         SystemKind::Nintendo3ds => {
@@ -245,10 +250,12 @@ fn prune_progress(
 fn pruned_source_names(log: &str) -> BTreeSet<String> {
     const PSP_EVENT: &str = " PRUNED verified PSP source: ";
     const PS2_EVENT: &str = " PRUNED verified PS2 source: ";
+    const GAMECUBE_EVENT: &str = " PRUNED verified GameCube source: ";
     log.lines()
         .filter_map(|line| {
             line.split_once(PSP_EVENT)
                 .or_else(|| line.split_once(PS2_EVENT))
+                .or_else(|| line.split_once(GAMECUBE_EVENT))
                 .map(|(_, name)| name.to_owned())
         })
         .collect()
@@ -257,7 +264,7 @@ fn pruned_source_names(log: &str) -> BTreeSet<String> {
 fn supports_library_actions(system: &SystemKind) -> bool {
     matches!(
         system,
-        SystemKind::PlayStationPortable | SystemKind::PlayStation2
+        SystemKind::GameCube | SystemKind::PlayStationPortable | SystemKind::PlayStation2
     )
 }
 

@@ -19,6 +19,8 @@ See [Architecture](docs/ARCHITECTURE.md) and
 - `crates/rom-pipeline-core`: configuration and domain rules
 - `crates/rom-pipeline-wiiu`: Wii U inventory, extraction, decryption, packaging,
   and validation adapter
+- `crates/rom-pipeline-gamecube`: manifest-backed GameCube ISO inventory,
+  lossless RVZ compression, and full round-trip validation adapter
 - `crates/rom-pipeline-nintendo-3ds`: Nintendo 3DS CCI inspection, crypto-flag
   normalization, and byte-exact validation adapter
 - `crates/rom-pipeline-psp`: PSP ISO identity validation, exact-duplicate
@@ -35,6 +37,7 @@ See [Architecture](docs/ARCHITECTURE.md) and
 - Rust 1.86 or newer
 - `7z` for archive extraction
 - `chdman` for PSP and PS2 CHD conversion and verification
+- `dolphin-tool` for GameCube RVZ conversion and verification
 - Adapter-specific tools such as CDecrypt and ZArchive for Wii U processing
 
 ROM Pipeline does not include game data, console keys, firmware, or third-party
@@ -102,3 +105,9 @@ The PS2 profile uses the same staged Publish and separately guarded Prune
 lifecycle. It accepts logical 2048-byte ISO images and proven single-track raw
 Mode 2/2352 BIN images. Compression that saves less than the configured
 threshold can preserve the original format instead.
+
+The GameCube profile also uses this lifecycle. It creates lossless RVZ files in
+FastDrive staging, verifies them with Dolphin, reconstructs each ISO and
+requires its SHA-256 to match the source, then moves the source into `done`.
+Publication transfers the RVZ to `library_dir`; the original ISO is retained
+until the complete set is published and a separately confirmed prune is run.

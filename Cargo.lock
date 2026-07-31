@@ -377,6 +377,7 @@ name = "rom-pipeline-cli"
 version = "0.1.0"
 dependencies = [
  "rom-pipeline-core",
+ "rom-pipeline-gamecube",
  "rom-pipeline-nintendo-3ds",
  "rom-pipeline-ps2",
  "rom-pipeline-psp",
@@ -394,6 +395,15 @@ dependencies = [
  "sha2",
  "thiserror",
  "toml",
+]
+
+[[package]]
+name = "rom-pipeline-gamecube"
+version = "0.1.0"
+dependencies = [
+ "fs2",
+ "rom-pipeline-core",
+ "sha2",
 ]
 
 [[package]]
@@ -428,6 +438,7 @@ version = "0.1.0"
 dependencies = [
  "fs2",
  "rom-pipeline-core",
+ "rom-pipeline-gamecube",
  "rom-pipeline-nintendo-3ds",
  "rom-pipeline-ps2",
  "rom-pipeline-psp",

@@ -45,6 +45,15 @@ BIN. For every completed pilot job:
 5. Do not prune pilot sources; the full-manifest guard should reject pruning
    while any job remains incomplete or unpublished.
 
+## GameCube pilot
+
+Select one GameCube job with `inventory --profile gamecube`, then run it with
+`start 1 --profile gamecube --only JOB_ID`. Confirm source verification, RVZ
+creation, RVZ verification, ISO round-trip, and completion are visible in
+status. Publish one job, verify the final RVZ with Dolphin, and confirm the
+source ISO remains in `done`. Do not prune until the full manifest is complete
+and published.
+
 ## Legacy removal
 
 Completed after the first production base+update+DLC conversion:

@@ -1,0 +1,14 @@
+[package]
+name = "rom-pipeline-gamecube"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+fs2.workspace = true
+rom-pipeline-core = { path = "../rom-pipeline-core" }
+sha2.workspace = true
+
+[lints]
+workspace = true

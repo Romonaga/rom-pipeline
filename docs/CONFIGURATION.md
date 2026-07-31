@@ -29,6 +29,14 @@ fields with format choices supplied by installed system adapters.
 
 Wii U needs the Archive.org manifest, CDecrypt, and ZArchive locations.
 
+GameCube uses `source_format = "iso"` and `output_format = "rvz"`. Its settings
+require the downloader's tab-separated size/name `manifest`, an absolute
+`dolphin_tool` path, RVZ block size, compression codec and level, and full
+round-trip verification. Source and final-library files may live on the NAS
+while work, state, logs, and staged RVZ files live on FastDrive. Publish and
+Prune remain independent bounded actions; Prune is unavailable until every
+manifest job is complete and published.
+
 Nintendo 3DS uses `normalize_crypto_flags = true`. This adapter only normalizes
 images whose decrypted main content can already be proven by internal hashes;
 it does not accept or store console keys.

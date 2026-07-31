@@ -30,6 +30,7 @@ for access from other hosts.
    - Subprocess supervision and progress events
 4. **System adapters**
    - Wii U NUS archives to validated WUA
+   - GameCube ISO images to lossless, round-trip-verified RVZ
    - Nintendo 3DS CCI images with proven decrypted payloads to normalized CCI
    - PSP ISO images to verified DVD-mode CHD, with exact duplicates grouped
    - PS2 ISO and proven raw Mode 2 disc images to verified CHD or a preserved
@@ -78,6 +79,22 @@ for access from other hosts.
 The selected implementation installs as `~/.local/bin/rom-pipeline`. The former
 installed shell executable and tool directory were removed after parity was
 confirmed.
+
+## GameCube compression
+
+The GameCube adapter builds a stable inventory from the downloader's size/name
+manifest. It verifies each ISO with Dolphin, creates an RVZ using Zstandard
+compression without scrubbing, verifies the RVZ, reconstructs a full ISO on the
+work filesystem, and requires the reconstructed SHA-256 to match the source
+before recording completion.
+
+Conversion, publication, and source pruning are separate locked, resumable
+actions. Work, staged RVZ files, state, and logs can remain on FastDrive while
+the source and final library remain on NAS storage. Publication uses a
+same-directory partial file and atomically renames it after hash and Dolphin
+verification. Pruning is refused until all manifest jobs are complete and
+published, and it permanently removes an ISO only after revalidating its final
+RVZ.
 
 ## Nintendo 3DS normalization
 

@@ -516,6 +516,7 @@ mod tests {
             output_format: "chd".to_owned(),
             batch_limit: 5,
             wiiu: None,
+            gamecube: None,
             nintendo_3ds: None,
             psp: None,
             ps2: None,

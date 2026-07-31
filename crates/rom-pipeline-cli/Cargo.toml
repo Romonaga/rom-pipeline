@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 rom-pipeline-core = { path = "../rom-pipeline-core" }
+rom-pipeline-gamecube = { path = "../rom-pipeline-gamecube" }
 rom-pipeline-nintendo-3ds = { path = "../rom-pipeline-nintendo-3ds" }
 rom-pipeline-ps2 = { path = "../rom-pipeline-ps2" }
 rom-pipeline-psp = { path = "../rom-pipeline-psp" }

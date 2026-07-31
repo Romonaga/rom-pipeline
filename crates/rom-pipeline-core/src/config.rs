@@ -9,6 +9,7 @@ use crate::{BatchPolicy, PipelineError, Result};
 #[serde(rename_all = "lowercase")]
 pub enum SystemKind {
     WiiU,
+    GameCube,
     #[serde(rename = "3ds")]
     Nintendo3ds,
     #[serde(rename = "psp")]
@@ -66,6 +67,33 @@ pub struct Ps2Settings {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct GameCubeSettings {
+    pub manifest: PathBuf,
+    pub dolphin_tool: PathBuf,
+    #[serde(default = "default_rvz_block_size")]
+    pub block_size: u32,
+    #[serde(default = "default_rvz_compression")]
+    pub compression: String,
+    #[serde(default = "default_rvz_compression_level")]
+    pub compression_level: i32,
+    #[serde(default = "enabled")]
+    pub verify_round_trip: bool,
+}
+
+const fn default_rvz_block_size() -> u32 {
+    131_072
+}
+
+fn default_rvz_compression() -> String {
+    "zstd".to_owned()
+}
+
+const fn default_rvz_compression_level() -> i32 {
+    5
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Nintendo3dsSettings {
     #[serde(default = "enabled")]
     pub normalize_crypto_flags: bool,
@@ -112,6 +140,7 @@ pub struct ProfileConfig {
     pub output_format: String,
     pub batch_limit: usize,
     pub wiiu: Option<WiiUSettings>,
+    pub gamecube: Option<GameCubeSettings>,
     #[serde(rename = "3ds")]
     pub nintendo_3ds: Option<Nintendo3dsSettings>,
     pub psp: Option<PspSettings>,
@@ -193,35 +222,7 @@ impl ProfileConfig {
             ));
         }
 
-        match self.system {
-            SystemKind::WiiU if self.wiiu.is_none() => Err(PipelineError::InvalidConfig(
-                "Wii U profile requires [profiles.wiiu] settings".to_owned(),
-            )),
-            SystemKind::Nintendo3ds if self.nintendo_3ds.is_none() => {
-                Err(PipelineError::InvalidConfig(
-                    "Nintendo 3DS profile requires [profiles.3ds] settings".to_owned(),
-                ))
-            }
-            SystemKind::PlayStationPortable if self.psp.is_none() => {
-                Err(PipelineError::InvalidConfig(
-                    "PSP profile requires [profiles.psp] settings".to_owned(),
-                ))
-            }
-            SystemKind::PlayStation2 if self.ps2.is_none() => Err(PipelineError::InvalidConfig(
-                "PS2 profile requires [profiles.ps2] settings".to_owned(),
-            )),
-            SystemKind::PlayStation2
-                if self
-                    .ps2
-                    .as_ref()
-                    .is_some_and(|settings| settings.minimum_savings_percent > 100) =>
-            {
-                Err(PipelineError::InvalidConfig(
-                    "PS2 minimum_savings_percent cannot exceed 100".to_owned(),
-                ))
-            }
-            _ => Ok(()),
-        }
+        validate_system_settings(self)
     }
 
     /// Returns the validated batch policy for this profile.
@@ -231,6 +232,59 @@ impl ProfileConfig {
     /// Returns an error if the configured limit is zero.
     pub fn batch_policy(&self) -> Result<BatchPolicy> {
         BatchPolicy::new(self.batch_limit)
+    }
+}
+
+fn validate_system_settings(profile: &ProfileConfig) -> Result<()> {
+    match profile.system {
+        SystemKind::WiiU if profile.wiiu.is_none() => Err(PipelineError::InvalidConfig(
+            "Wii U profile requires [profiles.wiiu] settings".to_owned(),
+        )),
+        SystemKind::GameCube if profile.gamecube.is_none() => Err(PipelineError::InvalidConfig(
+            "GameCube profile requires [profiles.gamecube] settings".to_owned(),
+        )),
+        SystemKind::GameCube
+            if profile
+                .gamecube
+                .as_ref()
+                .is_some_and(|settings| settings.block_size == 0) =>
+        {
+            Err(PipelineError::InvalidConfig(
+                "GameCube RVZ block_size must exceed zero".to_owned(),
+            ))
+        }
+        SystemKind::GameCube
+            if profile
+                .gamecube
+                .as_ref()
+                .is_some_and(|settings| settings.compression.trim().is_empty()) =>
+        {
+            Err(PipelineError::InvalidConfig(
+                "GameCube RVZ compression cannot be empty".to_owned(),
+            ))
+        }
+        SystemKind::Nintendo3ds if profile.nintendo_3ds.is_none() => {
+            Err(PipelineError::InvalidConfig(
+                "Nintendo 3DS profile requires [profiles.3ds] settings".to_owned(),
+            ))
+        }
+        SystemKind::PlayStationPortable if profile.psp.is_none() => Err(
+            PipelineError::InvalidConfig("PSP profile requires [profiles.psp] settings".to_owned()),
+        ),
+        SystemKind::PlayStation2 if profile.ps2.is_none() => Err(PipelineError::InvalidConfig(
+            "PS2 profile requires [profiles.ps2] settings".to_owned(),
+        )),
+        SystemKind::PlayStation2
+            if profile
+                .ps2
+                .as_ref()
+                .is_some_and(|settings| settings.minimum_savings_percent > 100) =>
+        {
+            Err(PipelineError::InvalidConfig(
+                "PS2 minimum_savings_percent cannot exceed 100".to_owned(),
+            ))
+        }
+        _ => Ok(()),
     }
 }
 
@@ -342,6 +396,7 @@ mod tests {
                 wait_seconds: 60,
                 source_service: "download.service".to_owned(),
             }),
+            gamecube: None,
             nintendo_3ds: None,
             psp: None,
             ps2: None,

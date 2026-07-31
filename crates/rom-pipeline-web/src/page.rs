@@ -1,7 +1,7 @@
 use std::fmt::Write;
 
 use rom_pipeline_core::{
-    AppConfig, ProfileConfig, Ps2Settings, PspSettings, SystemKind, WiiUSettings,
+    AppConfig, GameCubeSettings, ProfileConfig, Ps2Settings, PspSettings, SystemKind, WiiUSettings,
 };
 use rom_pipeline_service::ProfileStatus;
 
@@ -97,7 +97,7 @@ pub fn render(config: &AppConfig, statuses: &[ProfileStatus]) -> String {
 </head><body><main>
 <p class="eyebrow">Local conversion service</p>
 <h1>ROM Pipeline</h1>
-<p class="lede">Configure sources and outputs, process bounded batches, and see exactly what is active. Adapters currently handle Wii U title sets, Nintendo 3DS cartridge images, PSP ISO-to-CHD conversion, and verified PS2 disc compression.</p>
+<p class="lede">Configure sources and outputs, process bounded batches, and see exactly what is active. Adapters currently handle Wii U title sets, lossless GameCube RVZ compression, Nintendo 3DS cartridge images, PSP ISO-to-CHD conversion, and verified PS2 disc compression.</p>
 {profiles}
 </main><script>{SCRIPT}</script></body></html>"#
     )
@@ -249,6 +249,12 @@ fn configuration_form(profile: &ProfileConfig) -> String {
             };
             configuration_fields(profile, wiiu)
         }
+        SystemKind::GameCube => {
+            let Some(gamecube) = profile.gamecube.as_ref() else {
+                return "<p>GameCube settings are missing.</p>".to_owned();
+            };
+            gamecube_configuration_fields(profile, gamecube)
+        }
         SystemKind::Nintendo3ds => common_configuration_fields(profile),
         SystemKind::PlayStationPortable => {
             let Some(psp) = profile.psp.as_ref() else {
@@ -273,6 +279,39 @@ fn configuration_form(profile: &ProfileConfig) -> String {
         id = escape(&profile.id),
         fields = fields,
     )
+}
+
+fn gamecube_configuration_fields(profile: &ProfileConfig, gamecube: &GameCubeSettings) -> String {
+    let mut fields = vec![common_configuration_fields(profile)];
+    fields.extend([
+        path_field("Download manifest", "manifest", &gamecube.manifest),
+        path_field("Dolphin Tool", "dolphin_tool", &gamecube.dolphin_tool),
+        field(
+            "RVZ block size",
+            "block_size",
+            &gamecube.block_size.to_string(),
+            "number",
+        ),
+        field(
+            "RVZ compression",
+            "compression",
+            &gamecube.compression,
+            "text",
+        ),
+        field(
+            "RVZ compression level",
+            "compression_level",
+            &gamecube.compression_level.to_string(),
+            "number",
+        ),
+        field(
+            "Full round-trip verification",
+            "verify_round_trip",
+            &gamecube.verify_round_trip.to_string(),
+            "text",
+        ),
+    ]);
+    fields.join("")
 }
 
 fn ps2_configuration_fields(profile: &ProfileConfig, ps2: &Ps2Settings) -> String {
@@ -305,7 +344,7 @@ fn ps2_configuration_fields(profile: &ProfileConfig, ps2: &Ps2Settings) -> Strin
 fn supports_library_actions(system: &SystemKind) -> bool {
     matches!(
         system,
-        SystemKind::PlayStationPortable | SystemKind::PlayStation2
+        SystemKind::GameCube | SystemKind::PlayStationPortable | SystemKind::PlayStation2
     )
 }
 
