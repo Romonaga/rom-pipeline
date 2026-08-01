@@ -4,4 +4,6 @@
 !/config/profiles.example.toml
 *.log
 *.partial
+__pycache__/
+*.py[cod]
 .env
