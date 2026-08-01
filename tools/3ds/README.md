@@ -14,6 +14,8 @@ python3 tools/3ds/archive_cia_catalog.py \
 `download_exact_cia_replacements.sh` downloads only the rows in a reviewed
 replacement manifest. Downloads use hidden resumable partial files, validate
 the declared size, MD5, and SHA-1, and become visible only after verification.
+Capacity checks account only for bytes still missing, so an interrupted large
+collection can resume even when the full original collection no longer fits.
 
 ```sh
 tools/3ds/download_exact_cia_replacements.sh \

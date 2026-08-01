@@ -28,14 +28,31 @@ log_line() {
 readonly total=$(awk -F '\t' '!/^#/ && $1 != "title_id" && NF {count++} END {print count}' "$manifest")
 readonly total_bytes=$(awk -F '\t' '!/^#/ && $1 != "title_id" && NF {bytes += $4} END {printf "%.0f", bytes}' "$manifest")
 readonly available_bytes=$(df -PB1 "$destination" | awk 'NR == 2 {print $4}')
-if (( available_bytes < total_bytes )); then
-  log_line "ERROR insufficient space required=$total_bytes available=$available_bytes"
+remaining_bytes=0
+while IFS=$'\t' read -r title_id selection remote_name expected_size expected_md5 expected_sha1; do
+  if [[ -z "$title_id" || "$title_id" == \#* || "$title_id" == 'title_id' ]]; then
+    continue
+  fi
+  target="$destination/$remote_name"
+  part="$destination/.$remote_name.part"
+  if [[ -f "$target" && $(stat -c %s "$target" 2>/dev/null || printf '0') == "$expected_size" ]]; then
+    continue
+  fi
+  part_size=$(stat -c %s "$part" 2>/dev/null || printf '0')
+  if (( part_size > expected_size )); then
+    part_size=0
+  fi
+  remaining_bytes=$((remaining_bytes + expected_size - part_size))
+done <"$manifest"
+readonly remaining_bytes
+if (( available_bytes < remaining_bytes )); then
+  log_line "ERROR insufficient space required=$remaining_bytes available=$available_bytes"
   exit 1
 fi
 
 : >"$state_dir/failures.tsv"
 : >"$progress_log"
-log_line "START files=$total bytes=$total_bytes parallel=$parallel destination=$destination"
+log_line "START files=$total bytes=$total_bytes remaining_bytes=$remaining_bytes parallel=$parallel destination=$destination"
 
 download_one() {
   local index=$1 title_id=$2 remote_name=$3 expected_size=$4 expected_md5=$5 expected_sha1=$6
