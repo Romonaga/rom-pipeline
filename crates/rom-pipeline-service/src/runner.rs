@@ -11,6 +11,7 @@ use rom_pipeline_core::{
 };
 use rom_pipeline_gamecube::GameCubeAdapter;
 use rom_pipeline_nintendo_3ds::Nintendo3dsAdapter;
+use rom_pipeline_playstation_vita::VitaAdapter;
 use rom_pipeline_ps2::Ps2Adapter;
 use rom_pipeline_psp::PspAdapter;
 use rom_pipeline_wiiu::WiiUAdapter;
@@ -46,6 +47,11 @@ pub fn run_profile(profile: ProfileConfig, options: &RunOptions) -> Result<RunSu
         }
         SystemKind::PlayStation2 => {
             let adapter = Ps2Adapter::new(profile.clone())?;
+            adapter.preflight()?;
+            Runner::new(profile, adapter).run(options)
+        }
+        SystemKind::PlayStationVita => {
+            let adapter = VitaAdapter::new(profile.clone())?;
             adapter.preflight()?;
             Runner::new(profile, adapter).run(options)
         }

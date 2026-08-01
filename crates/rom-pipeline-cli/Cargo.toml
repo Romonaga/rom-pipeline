@@ -15,6 +15,7 @@ rom-pipeline-gamecube = { path = "../rom-pipeline-gamecube" }
 rom-pipeline-nintendo-3ds = { path = "../rom-pipeline-nintendo-3ds" }
 rom-pipeline-ps2 = { path = "../rom-pipeline-ps2" }
 rom-pipeline-psp = { path = "../rom-pipeline-psp" }
+rom-pipeline-playstation-vita = { path = "../rom-pipeline-playstation-vita" }
 rom-pipeline-service = { path = "../rom-pipeline-service" }
 rom-pipeline-web = { path = "../rom-pipeline-web" }
 rom-pipeline-wiiu = { path = "../rom-pipeline-wiiu" }

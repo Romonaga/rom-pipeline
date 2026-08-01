@@ -112,3 +112,23 @@ chdman = "/usr/bin/chdman"
 minimum_savings_percent = 10
 preserve_when_compression_is_not_worthwhile = true
 verify_round_trip = true
+
+[[profiles]]
+id = "vita"
+name = "PlayStation Vita native deployments"
+system = "vita"
+source_format = "nonpdrm-zip"
+source_dir = "/mnt/fast/rom-pipeline/vita/downloads"
+done_dir = "/mnt/fast/rom-pipeline/vita/downloads/done"
+work_dir = "/mnt/fast/rom-pipeline/vita/work"
+state_dir = "/mnt/fast/rom-pipeline/vita/state"
+log_dir = "/mnt/fast/rom-pipeline/vita/logs"
+output_dir = "/mnt/fast/rom-pipeline/vita/records"
+library_dir = "/media/user/SD2VITA"
+output_format = "native-vita-tree"
+batch_limit = 1
+
+[profiles.vita]
+seven_zip = "/usr/bin/7z"
+mountpoint = "/usr/bin/mountpoint"
+reserve_bytes = 20000000000

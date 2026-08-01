@@ -13,6 +13,7 @@ use rom_pipeline_nintendo_3ds::{
     Nintendo3dsAdapter, migrate_cci_library, prune_sources as prune_3ds_sources,
     publish_library as publish_3ds_library,
 };
+use rom_pipeline_playstation_vita::VitaAdapter;
 use rom_pipeline_ps2::{
     Ps2Adapter, prune_sources as prune_ps2_sources, publish_library as publish_ps2_library,
 };
@@ -126,9 +127,9 @@ fn publish(cli: &Cli) -> Result<()> {
                 summary.bytes_reclaimed,
             )
         }
-        SystemKind::WiiU => {
+        SystemKind::WiiU | SystemKind::PlayStationVita => {
             return Err(PipelineError::Message(
-                "publish is currently implemented only for 3DS, GameCube, PSP, and PS2".to_owned(),
+                "publish is not used for Wii U or Vita device deployments".to_owned(),
             ));
         }
     };
@@ -185,9 +186,9 @@ fn prune(cli: &Cli) -> Result<()> {
                 summary.bytes_reclaimed,
             )
         }
-        SystemKind::WiiU => {
+        SystemKind::WiiU | SystemKind::PlayStationVita => {
             return Err(PipelineError::Message(
-                "prune is currently implemented only for 3DS, GameCube, PSP, and PS2".to_owned(),
+                "prune is not available for Wii U or preserved Vita archives".to_owned(),
             ));
         }
     };
@@ -207,6 +208,7 @@ fn doctor(cli: &Cli) -> Result<()> {
         SystemKind::Nintendo3ds => Nintendo3dsAdapter::new(profile.clone())?.preflight()?,
         SystemKind::PlayStationPortable => PspAdapter::new(profile.clone())?.preflight()?,
         SystemKind::PlayStation2 => Ps2Adapter::new(profile.clone())?.preflight()?,
+        SystemKind::PlayStationVita => VitaAdapter::new(profile.clone())?.preflight()?,
     }
     println!("configuration: valid");
     println!("profile: {} ({})", profile.name, profile.id);
@@ -246,6 +248,9 @@ fn inventory(cli: &Cli) -> Result<()> {
         }
         SystemKind::PlayStation2 => {
             inventory_adapter(&Ps2Adapter::new(profile.clone())?, &profile, &state, cli)?;
+        }
+        SystemKind::PlayStationVita => {
+            inventory_adapter(&VitaAdapter::new(profile.clone())?, &profile, &state, cli)?;
         }
     }
     Ok(())

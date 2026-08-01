@@ -41,6 +41,7 @@ pub async fn serve(config_path: &Path, executable: &Path) -> Result<()> {
     let app = Router::new()
         .route("/", get(handlers::index))
         .route("/api/status", get(handlers::status))
+        .route("/api/jobs", get(handlers::jobs))
         .route("/profiles/save", post(handlers::save_profile))
         .route("/profiles/publish", post(handlers::publish_profile))
         .route("/profiles/prune", post(handlers::prune_profile))

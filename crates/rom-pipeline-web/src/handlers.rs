@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Form, Query, State};
-use axum::http::StatusCode;
+use axum::http::{StatusCode, header};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use rom_pipeline_core::{AppConfig, BatchPolicy, PipelineError, SystemKind};
 use rom_pipeline_service::{
-    profile_status, request_stop, service_state, start_prune_service, start_publish_service,
-    start_service,
+    profile_jobs, profile_status, request_stop, service_state, start_job_service,
+    start_prune_service, start_publish_service, start_service,
 };
 use serde::Deserialize;
 
@@ -34,13 +34,17 @@ impl IntoResponse for WebError {
     }
 }
 
-pub async fn index(State(state): State<Arc<WebState>>) -> WebResult<Html<String>> {
+pub async fn index(State(state): State<Arc<WebState>>) -> WebResult<Response> {
     let config = AppConfig::load(&state.config_path)?;
     let mut statuses = Vec::with_capacity(config.profiles.len());
     for profile in &config.profiles {
         statuses.push(profile_status(profile)?);
     }
-    Ok(Html(page::render(&config, &statuses)))
+    Ok((
+        [(header::CACHE_CONTROL, "no-store, max-age=0")],
+        Html(page::render(&config, &statuses)),
+    )
+        .into_response())
 }
 
 #[derive(Debug, Deserialize)]
@@ -56,10 +60,19 @@ pub async fn status(
     Ok(Json(profile_status(config.profile(&query.profile)?)?))
 }
 
+pub async fn jobs(
+    State(state): State<Arc<WebState>>,
+    Query(query): Query<ProfileQuery>,
+) -> WebResult<Json<Vec<rom_pipeline_service::JobChoice>>> {
+    let config = AppConfig::load(&state.config_path)?;
+    Ok(Json(profile_jobs(config.profile(&query.profile)?)?))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct StartForm {
     profile: String,
     limit: usize,
+    only: Option<String>,
 }
 
 pub async fn start_profile(
@@ -68,12 +81,16 @@ pub async fn start_profile(
 ) -> WebResult<Redirect> {
     let config = AppConfig::load(&state.config_path)?;
     let profile = config.profile(&form.profile)?;
-    start_service(
-        &state.executable,
-        &state.config_path,
-        profile,
-        BatchPolicy::new(form.limit)?,
-    )?;
+    let limit = BatchPolicy::new(form.limit)?;
+    if let Some(job) = form
+        .only
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        start_job_service(&state.executable, &state.config_path, profile, limit, job)?;
+    } else {
+        start_service(&state.executable, &state.config_path, profile, limit)?;
+    }
     Ok(Redirect::to("/"))
 }
 
@@ -174,6 +191,8 @@ pub struct SaveProfileForm {
     python: Option<String>,
     converter: Option<String>,
     ctrtool: Option<String>,
+    mountpoint: Option<String>,
+    reserve_bytes: Option<u64>,
     cdecrypt: Option<String>,
     zarchive: Option<String>,
     wait_seconds: Option<u64>,
@@ -219,15 +238,24 @@ pub async fn save_profile(
     }
     profile.output_format.clone_from(&form.output_format);
     profile.batch_limit = form.batch_limit;
+    update_system_settings(profile, &form)?;
+    config.save(&state.config_path)?;
+    Ok(Redirect::to("/"))
+}
+
+fn update_system_settings(
+    profile: &mut rom_pipeline_core::ProfileConfig,
+    form: &SaveProfileForm,
+) -> Result<(), PipelineError> {
     match profile.system {
         SystemKind::WiiU => {
             let wiiu = profile
                 .wiiu
                 .as_mut()
                 .ok_or_else(|| PipelineError::InvalidConfig("missing Wii U settings".to_owned()))?;
-            wiiu.manifest = required(form.manifest, "manifest")?.into();
-            wiiu.cdecrypt = required(form.cdecrypt, "cdecrypt")?.into();
-            wiiu.zarchive = required(form.zarchive, "zarchive")?.into();
+            wiiu.manifest = required(form.manifest.clone(), "manifest")?.into();
+            wiiu.cdecrypt = required(form.cdecrypt.clone(), "cdecrypt")?.into();
+            wiiu.zarchive = required(form.zarchive.clone(), "zarchive")?.into();
             wiiu.wait_seconds = form.wait_seconds.ok_or_else(|| {
                 PipelineError::InvalidConfig("wait_seconds is required".to_owned())
             })?;
@@ -236,12 +264,12 @@ pub async fn save_profile(
             let gamecube = profile.gamecube.as_mut().ok_or_else(|| {
                 PipelineError::InvalidConfig("missing GameCube settings".to_owned())
             })?;
-            gamecube.manifest = required(form.manifest, "manifest")?.into();
-            gamecube.dolphin_tool = required(form.dolphin_tool, "dolphin_tool")?.into();
+            gamecube.manifest = required(form.manifest.clone(), "manifest")?.into();
+            gamecube.dolphin_tool = required(form.dolphin_tool.clone(), "dolphin_tool")?.into();
             gamecube.block_size = form
                 .block_size
                 .ok_or_else(|| PipelineError::InvalidConfig("block_size is required".to_owned()))?;
-            gamecube.compression = required(form.compression, "compression")?;
+            gamecube.compression = required(form.compression.clone(), "compression")?;
             gamecube.compression_level = form.compression_level.ok_or_else(|| {
                 PipelineError::InvalidConfig("compression_level is required".to_owned())
             })?;
@@ -250,15 +278,15 @@ pub async fn save_profile(
             })?;
         }
         SystemKind::Nintendo3ds => {
-            update_3ds_settings(profile, &form)?;
+            update_3ds_settings(profile, form)?;
         }
         SystemKind::PlayStationPortable => {
             let psp = profile
                 .psp
                 .as_mut()
                 .ok_or_else(|| PipelineError::InvalidConfig("missing PSP settings".to_owned()))?;
-            psp.chdman = required(form.chdman, "chdman")?.into();
-            psp.codec = required(form.codec, "codec")?;
+            psp.chdman = required(form.chdman.clone(), "chdman")?.into();
+            psp.codec = required(form.codec.clone(), "codec")?;
             psp.hunk_size = form
                 .hunk_size
                 .ok_or_else(|| PipelineError::InvalidConfig("hunk_size is required".to_owned()))?;
@@ -271,8 +299,8 @@ pub async fn save_profile(
                 .ps2
                 .as_mut()
                 .ok_or_else(|| PipelineError::InvalidConfig("missing PS2 settings".to_owned()))?;
-            ps2.manifest = required(form.manifest, "manifest")?.into();
-            ps2.chdman = required(form.chdman, "chdman")?.into();
+            ps2.manifest = required(form.manifest.clone(), "manifest")?.into();
+            ps2.chdman = required(form.chdman.clone(), "chdman")?.into();
             ps2.minimum_savings_percent = form.minimum_savings_percent.ok_or_else(|| {
                 PipelineError::InvalidConfig("minimum_savings_percent is required".to_owned())
             })?;
@@ -287,9 +315,19 @@ pub async fn save_profile(
                 PipelineError::InvalidConfig("verify_round_trip is required".to_owned())
             })?;
         }
+        SystemKind::PlayStationVita => {
+            let vita = profile
+                .vita
+                .as_mut()
+                .ok_or_else(|| PipelineError::InvalidConfig("missing Vita settings".to_owned()))?;
+            vita.seven_zip = required(form.seven_zip.clone(), "seven_zip")?.into();
+            vita.mountpoint = required(form.mountpoint.clone(), "mountpoint")?.into();
+            vita.reserve_bytes = form.reserve_bytes.ok_or_else(|| {
+                PipelineError::InvalidConfig("reserve_bytes is required".to_owned())
+            })?;
+        }
     }
-    config.save(&state.config_path)?;
-    Ok(Redirect::to("/"))
+    Ok(())
 }
 
 fn update_3ds_settings(

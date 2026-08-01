@@ -16,6 +16,8 @@ pub enum SystemKind {
     PlayStationPortable,
     #[serde(rename = "ps2")]
     PlayStation2,
+    #[serde(rename = "vita")]
+    PlayStationVita,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -116,6 +118,19 @@ pub struct PspSettings {
     pub verify_round_trip: bool,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct VitaSettings {
+    pub seven_zip: PathBuf,
+    pub mountpoint: PathBuf,
+    #[serde(default = "default_vita_reserve_bytes")]
+    pub reserve_bytes: u64,
+}
+
+const fn default_vita_reserve_bytes() -> u64 {
+    20_000_000_000
+}
+
 fn default_psp_codec() -> String {
     "zstd".to_owned()
 }
@@ -150,6 +165,7 @@ pub struct ProfileConfig {
     pub nintendo_3ds: Option<Nintendo3dsSettings>,
     pub psp: Option<PspSettings>,
     pub ps2: Option<Ps2Settings>,
+    pub vita: Option<VitaSettings>,
 }
 
 impl ProfileConfig {
@@ -289,6 +305,12 @@ fn validate_system_settings(profile: &ProfileConfig) -> Result<()> {
                 "PS2 minimum_savings_percent cannot exceed 100".to_owned(),
             ))
         }
+        SystemKind::PlayStationVita if profile.vita.is_none() => Err(PipelineError::InvalidConfig(
+            "Vita profile requires [profiles.vita] settings".to_owned(),
+        )),
+        SystemKind::PlayStationVita if profile.library_dir.is_none() => Err(
+            PipelineError::InvalidConfig("Vita profile requires library_dir for ux0".to_owned()),
+        ),
         _ => Ok(()),
     }
 }
@@ -405,6 +427,7 @@ mod tests {
             nintendo_3ds: None,
             psp: None,
             ps2: None,
+            vita: None,
         }
     }
 

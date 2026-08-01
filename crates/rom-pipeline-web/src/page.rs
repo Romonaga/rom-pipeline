@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use rom_pipeline_core::{
     AppConfig, GameCubeSettings, Nintendo3dsSettings, ProfileConfig, Ps2Settings, PspSettings,
-    SystemKind, WiiUSettings,
+    SystemKind, VitaSettings, WiiUSettings,
 };
 use rom_pipeline_service::ProfileStatus;
 
@@ -12,7 +12,10 @@ body { margin:0; min-height:100vh; background:radial-gradient(circle at top left
 main { max-width:1100px; margin:auto; padding:48px 24px }
 h1 { font-size:clamp(2rem,5vw,4.5rem); margin:.1em 0; letter-spacing:-.05em }
 .lede { color:#aab7c7; max-width:680px; font-size:1.1rem }
-.card { background:#171d25; border:1px solid #2c3744; border-radius:20px; margin-top:28px; padding:24px; box-shadow:0 18px 60px #0005 }
+.profile-picker { display:flex; align-items:center; gap:12px; margin:28px 0 8px; color:#aab7c7 }
+.profile-picker select { flex:1; color:#e9eef5; background:#0d1217; border:1px solid #34404d; border-radius:10px; padding:12px; font-size:1rem }
+.card { display:none; background:#171d25; border:1px solid #2c3744; border-radius:20px; margin-top:18px; padding:24px; box-shadow:0 18px 60px #0005 }
+.card.selected { display:block }
 .heading,.actions { display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap }
 .eyebrow { color:#70d6ff; text-transform:uppercase; letter-spacing:.14em; font-size:.75rem; margin:0 }
 h2 { margin:.2rem 0 }
@@ -36,6 +39,7 @@ h2 { margin:.2rem 0 }
 .prune-progress .publication-heading strong { color:#fbbf24 }
 form { display:flex; align-items:end; gap:10px; flex-wrap:wrap }
 input { color:#e9eef5; background:#0d1217; border:1px solid #34404d; border-radius:8px; padding:10px; min-width:80px }
+.vita-title { flex:1 1 360px }.vita-title input { width:100%; box-sizing:border-box }.hint { color:#8f9dae; font-size:.78rem; margin:.3rem 0 0 }
 button { border:0; border-radius:9px; padding:11px 16px; color:#07131b; background:#70d6ff; font-weight:700; cursor:pointer }
 button.secondary { color:#e9eef5; background:#34404d }
 .library-actions { margin-top:18px; padding-top:18px; border-top:1px solid #2c3744 }
@@ -47,9 +51,11 @@ details { margin-top:24px; border-top:1px solid #2c3744; padding-top:18px }
 ";
 
 const SCRIPT: &str = r"
-for (const card of document.querySelectorAll('[data-profile]')) {
-  const id = card.dataset.profile;
-  async function refresh() {
+const cards = Array.from(document.querySelectorAll('[data-profile]'));
+const picker = document.getElementById('profile-select');
+
+async function refresh(card) {
+    const id = card.dataset.profile;
     try {
       const response = await fetch('/api/status?profile=' + encodeURIComponent(id));
       if (!response.ok) return;
@@ -83,13 +89,54 @@ for (const card of document.querySelectorAll('[data-profile]')) {
         document.getElementById('prune-game-' + id).textContent = p.current_game || 'none';
       }
     } catch (_) {}
-  }
-  setInterval(refresh, 3000);
 }
+
+async function loadVitaJobs(card) {
+  if (card.dataset.vita !== 'true' || card.dataset.jobsLoaded === 'true') return;
+  const id = card.dataset.profile;
+  const list = document.getElementById('jobs-' + id);
+  const hint = document.getElementById('jobs-hint-' + id);
+  try {
+    const response = await fetch('/api/jobs?profile=' + encodeURIComponent(id));
+    if (!response.ok) return;
+    const jobs = await response.json();
+    for (const job of jobs) {
+      const option = document.createElement('option');
+      option.value = job.id;
+      option.label = job.name + ' [' + job.id.replace('VITA-', '') + ']';
+      list.appendChild(option);
+    }
+    hint.textContent = jobs.length + ' archived games available; choose one game to deploy.';
+    card.dataset.jobsLoaded = 'true';
+  } catch (_) {
+    hint.textContent = 'Unable to load the Vita title list.';
+  }
+}
+
+function showProfile(id) {
+  const selected = cards.find(card => card.dataset.profile === id) || cards[0];
+  if (!selected) return;
+  for (const card of cards) card.classList.toggle('selected', card === selected);
+  picker.value = selected.dataset.profile;
+  localStorage.setItem('rom-pipeline-profile', selected.dataset.profile);
+  history.replaceState(null, '', '#' + encodeURIComponent(selected.dataset.profile));
+  refresh(selected);
+  loadVitaJobs(selected);
+}
+
+const hash = decodeURIComponent(location.hash.replace(/^#/, ''));
+const remembered = localStorage.getItem('rom-pipeline-profile');
+showProfile(hash || remembered || picker.value);
+picker.addEventListener('change', () => showProfile(picker.value));
+setInterval(() => {
+  const selected = cards.find(card => card.classList.contains('selected'));
+  if (selected) refresh(selected);
+}, 3000);
 ";
 
 pub fn render(config: &AppConfig, statuses: &[ProfileStatus]) -> String {
     let profiles = render_profiles(config, statuses);
+    let selector = profile_selector(config, statuses);
     format!(
         r#"<!doctype html>
 <html lang="en"><head>
@@ -98,15 +145,42 @@ pub fn render(config: &AppConfig, statuses: &[ProfileStatus]) -> String {
 </head><body><main>
 <p class="eyebrow">Local conversion service</p>
 <h1>ROM Pipeline</h1>
-<p class="lede">Configure sources and outputs, process bounded batches, and see exactly what is active. Adapters currently handle Wii U title sets, lossless GameCube RVZ compression, Nintendo 3DS cartridge images, PSP ISO-to-CHD conversion, and verified PS2 disc compression.</p>
+<p class="lede">Configure sources and outputs, process bounded batches, and see exactly what is active. Each system is implemented by its own adapter, including selective native deployment to SD2Vita.</p>
+{selector}
 {profiles}
 </main><script>{SCRIPT}</script></body></html>"#
     )
 }
 
+fn profile_selector(config: &AppConfig, statuses: &[ProfileStatus]) -> String {
+    let options =
+        config
+            .profiles
+            .iter()
+            .enumerate()
+            .fold(String::new(), |mut options, (index, profile)| {
+                let activity = statuses
+                    .iter()
+                    .find(|status| status.profile == profile.id)
+                    .map_or("unknown", |status| status.activity.as_str());
+                let _ = write!(
+                    options,
+                    "<option value=\"{}\"{}>{} - {}</option>",
+                    escape(&profile.id),
+                    if index == 0 { " selected" } else { "" },
+                    escape(&profile.name),
+                    escape(activity)
+                );
+                options
+            });
+    format!(
+        "<label class=\"profile-picker\">System <select id=\"profile-select\">{options}</select></label>"
+    )
+}
+
 fn render_profiles(config: &AppConfig, statuses: &[ProfileStatus]) -> String {
     let mut profiles = String::new();
-    for profile in &config.profiles {
+    for (index, profile) in config.profiles.iter().enumerate() {
         let status = statuses.iter().find(|status| status.profile == profile.id);
         let activity = status.map_or("unknown", |status| status.activity.as_str());
         let current = status.map_or("not started", |status| status.current.as_str());
@@ -119,7 +193,7 @@ fn render_profiles(config: &AppConfig, statuses: &[ProfileStatus]) -> String {
         let prune = prune_status(profile, status);
         let _ = write!(
             profiles,
-            r#"<section class="card" data-profile="{id}">
+            r#"<section class="card{selected}" data-profile="{id}" data-vita="{vita}">
 <div class="heading"><div><p class="eyebrow">{system}</p><h2>{name}</h2></div>
 <span class="badge {activity}">{activity}</span></div>
 <div class="status-grid">
@@ -128,23 +202,20 @@ fn render_profiles(config: &AppConfig, statuses: &[ProfileStatus]) -> String {
 <div><span>Worker</span><strong id="worker-{id}">{worker}</strong></div></div>
 {publication}
 {prune}
-<div class="actions"><form method="post" action="/profiles/start">
-<input type="hidden" name="profile" value="{id}">
-<label>Titles this run <input name="limit" type="number" min="1" value="{limit}"></label>
-<button type="submit">Start / Resume</button></form>
-<form method="post" action="/profiles/stop"><input type="hidden" name="profile" value="{id}">
-<button class="secondary" type="submit">Stop cleanly</button></form></div>
+{run_actions}
 {library_actions}
 {configuration}</section>"#,
             id = escape(&profile.id),
             system = escape(&format!("{:?}", profile.system)),
             name = escape(&profile.name),
             activity = escape(activity),
+            selected = if index == 0 { " selected" } else { "" },
+            vita = matches!(profile.system, SystemKind::PlayStationVita),
             current = escape(current),
             completed = completed,
             total = total,
             worker = escape(worker),
-            limit = profile.batch_limit,
+            run_actions = run_actions(profile),
             publication = publication,
             prune = prune,
             library_actions = library_actions(profile),
@@ -152,6 +223,35 @@ fn render_profiles(config: &AppConfig, statuses: &[ProfileStatus]) -> String {
         );
     }
     profiles
+}
+
+fn run_actions(profile: &ProfileConfig) -> String {
+    let id = escape(&profile.id);
+    if matches!(profile.system, SystemKind::PlayStationVita) {
+        return format!(
+            r#"<div class="actions"><form method="post" action="/profiles/start">
+<input type="hidden" name="profile" value="{id}">
+<label class="vita-title">Game to deploy
+<input name="only" list="jobs-{id}" pattern="VITA-[A-Za-z0-9]{{9}}" required
+ placeholder="Type a game name or Vita title ID, then select it" autocomplete="off"
+ title="Select a game from the archived-game suggestions"></label>
+<datalist id="jobs-{id}"></datalist>
+<input name="limit" type="hidden" value="1">
+<button type="submit">Deploy to SD2Vita</button>
+<p class="hint" id="jobs-hint-{id}">Loading archived games...</p></form>
+<form method="post" action="/profiles/stop"><input type="hidden" name="profile" value="{id}">
+<button class="secondary" type="submit">Stop cleanly</button></form></div>"#
+        );
+    }
+    format!(
+        r#"<div class="actions"><form method="post" action="/profiles/start">
+<input type="hidden" name="profile" value="{id}">
+<label>Titles this run <input name="limit" type="number" min="1" value="{limit}"></label>
+<button type="submit">Start / Resume</button></form>
+<form method="post" action="/profiles/stop"><input type="hidden" name="profile" value="{id}">
+<button class="secondary" type="submit">Stop cleanly</button></form></div>"#,
+        limit = profile.batch_limit
+    )
 }
 
 fn prune_status(profile: &ProfileConfig, status: Option<&ProfileStatus>) -> String {
@@ -274,6 +374,12 @@ fn configuration_form(profile: &ProfileConfig) -> String {
             };
             ps2_configuration_fields(profile, ps2)
         }
+        SystemKind::PlayStationVita => {
+            let Some(vita) = profile.vita.as_ref() else {
+                return "<p>PlayStation Vita settings are missing.</p>".to_owned();
+            };
+            vita_configuration_fields(profile, vita)
+        }
     };
     format!(
         r#"<details><summary>Configuration</summary>
@@ -285,6 +391,21 @@ fn configuration_form(profile: &ProfileConfig) -> String {
         id = escape(&profile.id),
         fields = fields,
     )
+}
+
+fn vita_configuration_fields(profile: &ProfileConfig, vita: &VitaSettings) -> String {
+    let mut fields = vec![common_configuration_fields(profile)];
+    fields.extend([
+        path_field("7-Zip", "seven_zip", &vita.seven_zip),
+        path_field("Mountpoint checker", "mountpoint", &vita.mountpoint),
+        field(
+            "Reserved free bytes on SD2Vita",
+            "reserve_bytes",
+            &vita.reserve_bytes.to_string(),
+            "number",
+        ),
+    ]);
+    fields.join("")
 }
 
 fn nintendo_3ds_configuration_fields(

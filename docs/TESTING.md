@@ -66,6 +66,20 @@ conversion, or publication remains incomplete.
 For an existing CCI library, `migrate-3ds-library COUNT --profile 3ds`
 converts and validates CIAs in place without deleting or moving the CCIs.
 
+## PlayStation Vita deployment pilot
+
+Prepare and mount an SD2Vita card, then set the Vita profile's `library_dir` to
+that mount root. Select a single title in the web interface or run
+`start 1 --profile vita --only VITA-TITLE_ID`. Confirm that:
+
+1. an unmounted or incorrectly configured destination is rejected;
+2. the ZIP CRC and NoNpDRM layout are validated before extraction;
+3. deployment stages on the SD2Vita filesystem and leaves no partial title;
+4. the final `app/TITLE_ID` and optional `patch/TITLE_ID` trees match every ZIP
+   entry's size and CRC;
+5. the source ZIP remains unchanged; and
+6. VitaShell **Refresh livearea** makes the deployed title visible on device.
+
 ## Legacy removal
 
 Completed after the first production base+update+DLC conversion:

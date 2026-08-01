@@ -9,6 +9,7 @@ use rom_pipeline_core::{
 };
 use rom_pipeline_gamecube::GameCubeAdapter;
 use rom_pipeline_nintendo_3ds::Nintendo3dsAdapter;
+use rom_pipeline_playstation_vita::VitaAdapter;
 use rom_pipeline_ps2::Ps2Adapter;
 use rom_pipeline_psp::PspAdapter;
 use rom_pipeline_wiiu::WiiUAdapter;
@@ -97,10 +98,17 @@ pub fn profile_status(profile: &ProfileConfig) -> Result<ProfileStatus> {
             let adapter = Ps2Adapter::new(profile.clone())?;
             completion_counts(&adapter, profile, &state)?
         }
+        SystemKind::PlayStationVita => {
+            let adapter = VitaAdapter::new(profile.clone())?;
+            completion_counts(&adapter, profile, &state)?
+        }
     };
     let batch_limit =
         read_number(profile.state_dir.join("batch.limit")).unwrap_or(profile.batch_limit);
-    let output_files = if matches!(profile.system, SystemKind::PlayStation2) {
+    let output_files = if matches!(
+        profile.system,
+        SystemKind::PlayStation2 | SystemKind::PlayStationVita
+    ) {
         completed_groups
     } else {
         let mut count = count_outputs(profile, &profile.output_dir)?;

@@ -6,6 +6,7 @@ members = [
     "crates/rom-pipeline-nintendo-3ds",
     "crates/rom-pipeline-ps2",
     "crates/rom-pipeline-psp",
+    "crates/rom-pipeline-playstation-vita",
     "crates/rom-pipeline-service",
     "crates/rom-pipeline-web",
     "crates/rom-pipeline-wiiu",
@@ -27,6 +28,7 @@ pedantic = "warn"
 
 [workspace.dependencies]
 axum = { version = "0.8.9", features = ["form"] }
+crc32fast = "1.5.0"
 fs2 = "0.4.3"
 serde = { version = "1.0.229", features = ["derive"] }
 sha2 = "0.11.0"

@@ -520,6 +520,7 @@ mod tests {
             nintendo_3ds: None,
             psp: None,
             ps2: None,
+            vita: None,
         };
         assert!(completion_output_valid(&profile, &record, true).expect("validate"));
         fs::remove_file(output).expect("remove output");

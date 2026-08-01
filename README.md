@@ -27,6 +27,8 @@ See [Architecture](docs/ARCHITECTURE.md) and
   grouping, CHD creation, and full round-trip validation adapter
 - `crates/rom-pipeline-ps2`: manifest-backed PS2 ISO/raw Mode 2 inventory,
   compatibility-first CHD creation, and full round-trip validation adapter
+- `crates/rom-pipeline-playstation-vita`: NoNpDRM ZIP validation and selective,
+  space-checked native deployment to a mounted SD2Vita
 - `crates/rom-pipeline-service`: bounded runner and systemd controls
 - `crates/rom-pipeline-web`: loopback configuration and live-status screen
 - `crates/rom-pipeline-cli`: command-line entry point
@@ -39,6 +41,7 @@ See [Architecture](docs/ARCHITECTURE.md) and
 - `chdman` for PSP and PS2 CHD conversion and verification
 - `dolphin-tool` for GameCube RVZ conversion and verification
 - `3dsconv`, `ctrtool`, Python 3, and `7z` for Nintendo 3DS CIA creation
+- `7z` and `mountpoint` for PlayStation Vita SD2Vita deployment
 - Adapter-specific tools such as CDecrypt and ZArchive for Wii U processing
 
 ROM Pipeline does not include game data, console keys, firmware, or third-party

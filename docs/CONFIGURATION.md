@@ -61,3 +61,11 @@ files can remain on the NAS while work and staged outputs live on FastDrive.
 As with PSP, Publish transfers verified outputs to `library_dir`; Prune is a
 separate, explicitly confirmed action and is unavailable until the complete
 manifest set is published.
+
+PlayStation Vita uses `source_format = "nonpdrm-zip"` and
+`output_format = "native-vita-tree"`. `source_dir` keeps the original ZIP
+archive set, while `library_dir` is the mounted SD2Vita `ux0:` root. The Vita
+settings contain absolute paths to `7z` and `mountpoint` plus a byte reserve
+that must remain free after deployment. The adapter refuses to write when the
+destination is not a real mountpoint. Vita ZIPs are never moved to `done` and
+there is no source Prune action.

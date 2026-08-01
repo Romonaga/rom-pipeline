@@ -36,6 +36,7 @@ for access from other hosts.
    - PSP ISO images to verified DVD-mode CHD, with exact duplicates grouped
    - PS2 ISO and proven raw Mode 2 disc images to verified CHD or a preserved
      original when compression is not worthwhile
+   - PlayStation Vita NoNpDRM ZIPs to selected native SD2Vita deployments
    - Future adapters for other systems
 5. **State store**
    - Durable job states and output fingerprints
@@ -64,6 +65,7 @@ for access from other hosts.
 - Treat a batch limit as completed jobs, not attempted jobs.
 - Keep system-specific commands behind adapters.
 - Validate that configured filesystems respond before beginning work.
+- Require removable-device destinations to be real mountpoints before writing.
 
 ## Migration plan
 
@@ -115,6 +117,21 @@ creating an output; ROM Pipeline does not accept or store console keys.
 
 An explicit one-off migration command converts existing library CCIs to CIAs
 while preserving every original CCI for cold storage.
+
+## PlayStation Vita native deployment
+
+The Vita adapter keeps NoNpDRM ZIPs as the archival source format and deploys
+only user-selected games. It inventories stable Vita title IDs from filenames,
+CRC-tests each selected ZIP, validates the native `app/TITLE_ID` layout and
+required `eboot.bin`, `param.sfo`, and `work.bin`, and supports a bundled
+`patch/TITLE_ID` update when present.
+
+Deployment writes directly into an owned staging directory on the mounted
+SD2Vita filesystem, verifies every extracted file against the ZIP size and CRC,
+then atomically promotes title directories. It refuses a destination that is
+not a real mountpoint, preserves a configurable free-space reserve, records a
+per-file deployment manifest for resume and re-verification, and never moves or
+prunes the source ZIP.
 
 ## PSP compression
 

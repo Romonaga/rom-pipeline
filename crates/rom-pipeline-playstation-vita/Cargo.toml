@@ -1,0 +1,14 @@
+[package]
+name = "rom-pipeline-playstation-vita"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+crc32fast.workspace = true
+fs2.workspace = true
+rom-pipeline-core = { path = "../rom-pipeline-core" }
+
+[lints]
+workspace = true

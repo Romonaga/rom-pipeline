@@ -7,7 +7,7 @@ pub mod state;
 pub use adapter::PipelineAdapter;
 pub use config::{
     AppConfig, GameCubeSettings, Nintendo3dsSettings, ProfileConfig, Ps2Settings, PspSettings,
-    ServiceConfig, SystemKind, WiiUSettings,
+    ServiceConfig, SystemKind, VitaSettings, WiiUSettings,
 };
 pub use domain::{
     BatchPolicy, ComponentKind, DEFAULT_BATCH_LIMIT, Job, JobOutcome, Readiness, RunOptions,

@@ -123,7 +123,7 @@ fn sha256_name(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     use super::GameCubeInventory;
 
@@ -158,10 +158,8 @@ mod tests {
     }
 
     fn fixture_path() -> std::path::PathBuf {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock")
-            .as_nanos();
+        static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
+        let nonce = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
         std::env::temp_dir().join(format!(
             "rom-pipeline-gamecube-inventory-{}-{nonce}",
             std::process::id()
